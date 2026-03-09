@@ -24,7 +24,12 @@ const initialWords: WordData[] = [
 
 type LearningMode = null | "chooser" | "text" | "flashcards";
 
-const DictionaryScreen = () => {
+interface DictionaryScreenProps {
+  theme: "light" | "dark";
+  toggleTheme: () => void;
+}
+
+const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [words, setWords] = useState<WordData[]>(initialWords);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [learningMode, setLearningMode] = useState<LearningMode>(null);
