@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Save, Moon, Sun, Camera } from "lucide-react";
+import { Save, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import ThemeToggle from "./ThemeToggle";
 
 interface ProfileScreenProps {
   theme: "light" | "dark";
@@ -23,17 +24,7 @@ const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Profile</h1>
           <p className="mt-1 text-sm text-muted-foreground">Personalize your learning experience.</p>
         </div>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={toggleTheme}
-          className="flex h-10 w-10 items-center justify-center rounded-xl glass transition-colors"
-        >
-          {theme === "light" ? (
-            <Moon size={18} className="text-foreground" />
-          ) : (
-            <Sun size={18} className="text-primary" />
-          )}
-        </motion.button>
+        <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
       </div>
 
       <motion.div

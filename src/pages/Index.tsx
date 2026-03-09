@@ -12,9 +12,9 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background transition-colors duration-300">
-      {activeTab === "translation" && <TranslationScreen />}
-      {activeTab === "read" && <ReadScreen />}
-      {activeTab === "dictionary" && <DictionaryScreen />}
+      {activeTab === "translation" && <TranslationScreen theme={theme} toggleTheme={toggleTheme} />}
+      {activeTab === "read" && <ReadScreen theme={theme} toggleTheme={toggleTheme} />}
+      {activeTab === "dictionary" && <DictionaryScreen theme={theme} toggleTheme={toggleTheme} />}
       {activeTab === "profile" && <ProfileScreen theme={theme} toggleTheme={toggleTheme} />}
       <BottomNav active={activeTab} onTabChange={setActiveTab} />
     </div>

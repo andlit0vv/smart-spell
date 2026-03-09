@@ -40,7 +40,7 @@ const mockResults: Record<string, WordResult> = {
   },
 };
 
-const TranslationScreen = () => {
+const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   const [word, setWord] = useState("");
   const [result, setResult] = useState<WordResult | null>(null);
 
@@ -63,8 +63,13 @@ const TranslationScreen = () => {
 
   return (
     <div className="mx-auto max-w-lg px-5 pb-36 pt-6">
-      <h1 className="text-2xl font-bold tracking-tight text-foreground">Translation</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Enter a word to translate and add to your dictionary.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Translation</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Enter a word to translate and add to your dictionary.</p>
+        </div>
+        <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+      </div>
 
       <div className="mt-5 flex gap-2.5">
         <input

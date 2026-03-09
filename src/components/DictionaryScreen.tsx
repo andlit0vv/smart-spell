@@ -65,10 +65,15 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   return (
     <>
       <div className="mx-auto max-w-lg px-5 pb-36 pt-6">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">My Dictionary</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Select words to generate a learning text.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">My Dictionary</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Select words to generate a learning text.
+            </p>
+          </div>
+          <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+        </div>
 
         <div className="mt-5 flex flex-col gap-2.5">
           {words.map((w) => (
