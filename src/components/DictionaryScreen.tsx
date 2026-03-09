@@ -4,6 +4,7 @@ import { Sparkles, CheckCircle2, Layers, BookOpen } from "lucide-react";
 import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
 import FlashcardMode from "./FlashcardMode";
+import ThemeToggle from "./ThemeToggle";
 
 interface WordData {
   word: string;
@@ -23,7 +24,12 @@ const initialWords: WordData[] = [
 
 type LearningMode = null | "chooser" | "text" | "flashcards";
 
-const DictionaryScreen = () => {
+interface DictionaryScreenProps {
+  theme: "light" | "dark";
+  toggleTheme: () => void;
+}
+
+const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [words, setWords] = useState<WordData[]>(initialWords);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [learningMode, setLearningMode] = useState<LearningMode>(null);
@@ -59,10 +65,15 @@ const DictionaryScreen = () => {
   return (
     <>
       <div className="mx-auto max-w-lg px-5 pb-36 pt-6">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">My Dictionary</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Select words to generate a learning text.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">My Dictionary</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Select words to generate a learning text.
+            </p>
+          </div>
+          <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+        </div>
 
         <div className="mt-5 flex flex-col gap-2.5">
           {words.map((w) => (

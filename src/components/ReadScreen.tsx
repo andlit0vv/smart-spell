@@ -1,15 +1,26 @@
 import { useState } from "react";
 import { Upload, BookOpen, X, FileUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import ThemeToggle from "./ThemeToggle";
 
-const ReadScreen = () => {
+interface ReadScreenProps {
+  theme: "light" | "dark";
+  toggleTheme: () => void;
+}
+
+const ReadScreen = ({ theme, toggleTheme }: ReadScreenProps) => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
   return (
     <div className="mx-auto max-w-lg px-5 pb-36 pt-6">
-      <h1 className="text-2xl font-bold tracking-tight text-foreground">Read</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Upload books to practice vocabulary in context.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Read</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Upload books to practice vocabulary in context.</p>
+        </div>
+        <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+      </div>
 
       <motion.button
         whileTap={{ scale: 0.97 }}
