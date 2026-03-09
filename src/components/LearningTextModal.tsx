@@ -42,17 +42,21 @@ const LearningTextModal = ({ open, onClose }: Props) => {
             </div>
 
             <div className="flex gap-3 pb-8 pt-4">
-              <button
+              <motion.button
+                whileTap={{ scale: 0.97 }}
                 onClick={onClose}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-semibold text-foreground transition-colors active:bg-muted"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl glass py-3 text-sm font-semibold text-foreground transition-colors"
               >
                 <ArrowLeft size={16} />
                 Back to Dictionary
-              </button>
-              <button className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition-transform active:scale-[0.97]">
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20"
+              >
                 <BookmarkPlus size={16} />
-                Save as Practice Session
-              </button>
+                Save as Practice
+              </motion.button>
             </div>
           </motion.div>
         </motion.div>
