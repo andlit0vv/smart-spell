@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { ArrowRight, Languages, Tag, BarChart3, FileText, BookOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import ThemeToggle from "./ThemeToggle";
+
+interface TranslationScreenProps {
+  theme: "light" | "dark";
+  toggleTheme: () => void;
+}
 
 interface WordResult {
   word: string;
