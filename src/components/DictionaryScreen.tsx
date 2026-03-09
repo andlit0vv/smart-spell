@@ -4,6 +4,7 @@ import { Sparkles, CheckCircle2, Layers, BookOpen } from "lucide-react";
 import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
 import FlashcardMode from "./FlashcardMode";
+import ThemeToggle from "./ThemeToggle";
 
 interface WordData {
   word: string;
