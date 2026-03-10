@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, CheckCircle2, Layers, BookOpen } from "lucide-react";
+import { Sparkles, CheckCircle2, MessageCircle, BookOpen, FileText } from "lucide-react";
 import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
-import FlashcardMode from "./FlashcardMode";
 import DialogueTraining from "./DialogueTraining";
 import ThemeToggle from "./ThemeToggle";
 
@@ -12,8 +11,6 @@ interface WordData {
   domain: string;
   relevance: number;
   definition: string;
-  translation: string;
-  examples: string[];
 }
 
 const initialWords: WordData[] = [
@@ -22,68 +19,40 @@ const initialWords: WordData[] = [
     domain: "General",
     relevance: 7,
     definition: "To discuss something in order to reach an agreement.",
-    translation: "Вести переговоры, договариваться",
-    examples: [
-      "We need to negotiate the terms of the contract.",
-      "She managed to negotiate a better deal.",
-    ],
   },
   {
     word: "Asynchronous",
     domain: "IT",
     relevance: 9,
     definition: "A communication method where operations occur independently, without waiting for others to finish.",
-    translation: "Асинхронный",
-    examples: [
-      "Asynchronous programming allows tasks to run concurrently.",
-      "The API uses asynchronous calls to improve performance.",
-    ],
   },
   {
     word: "Containerization",
     domain: "IT",
     relevance: 8,
     definition: "Packaging software with its dependencies into isolated, portable containers for deployment.",
-    translation: "Контейнеризация",
-    examples: [
-      "Docker popularized containerization in the software industry.",
-    ],
   },
   {
     word: "Protocol",
     domain: "General/IT",
     relevance: 7,
     definition: "A formal set of rules governing data transmission between systems or networks.",
-    translation: "Протокол",
-    examples: [
-      "HTTP is a widely used protocol for web communication.",
-      "The team agreed on a protocol for incident response.",
-    ],
   },
   {
     word: "Myocardial",
     domain: "Medicine",
     relevance: 6,
     definition: "Relating to the muscular tissue of the heart, the myocardium.",
-    translation: "Миокардиальный",
-    examples: [
-      "Myocardial infarction is a medical emergency requiring immediate treatment.",
-    ],
   },
   {
     word: "Deployment",
     domain: "IT",
     relevance: 8,
     definition: "The process of releasing software to a production environment for end users.",
-    translation: "Развёртывание",
-    examples: [
-      "The deployment pipeline automates testing and release.",
-      "We scheduled the deployment for midnight to minimize downtime.",
-    ],
   },
 ];
 
-type LearningMode = null | "chooser" | "text" | "flashcards";
+type LearningMode = null | "chooser" | "text" | "dialogue";
 
 interface DictionaryScreenProps {
   theme: "light" | "dark";
@@ -94,8 +63,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [words, setWords] = useState<WordData[]>(initialWords);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [learningMode, setLearningMode] = useState<LearningMode>(null);
-  const [expandedWord, setExpandedWord] = useState<string | null>(null);
-  const [dialogueWord, setDialogueWord] = useState<WordData | null>(null);
+  const [dialogueWords, setDialogueWords] = useState<WordData[]>([]);
 
   const toggle = (word: string) => {
     setSelected((prev) => {
@@ -111,36 +79,17 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     setSelected(new Set());
   };
 
-  const handleSkip = (word: string) => {
-    setWords((prev) => prev.filter((w) => w.word !== word));
-    setExpandedWord(null);
-  };
-
-  const handleAdd = (word: string) => {
-    setSelected((prev) => new Set(prev).add(word));
-    setExpandedWord(null);
-  };
-
   const selectedWords = words.filter((w) => selected.has(w.word));
 
   // Dialogue training mode
-  if (dialogueWord) {
+  if (learningMode === "dialogue" && dialogueWords.length > 0) {
     return (
       <DialogueTraining
-        word={dialogueWord.word}
-        definition={dialogueWord.definition}
-        onExit={() => setDialogueWord(null)}
-      />
-    );
-  }
-
-  // Flashcard mode
-  if (learningMode === "flashcards") {
-    return (
-      <FlashcardMode
-        words={selectedWords}
+        word={dialogueWords[0].word}
+        definition={dialogueWords[0].definition}
         onExit={() => {
           setLearningMode(null);
+          setDialogueWords([]);
           setSelected(new Set());
         }}
       />
@@ -154,7 +103,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">My Dictionary</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Tap a word to expand · select to learn in batch.
+              Select words to learn in batch.
             </p>
           </div>
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
@@ -168,15 +117,8 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
               domain={w.domain}
               relevance={w.relevance}
               definition={w.definition}
-              translation={w.translation}
-              examples={w.examples}
-              expanded={expandedWord === w.word}
-              onToggleExpand={() =>
-                setExpandedWord((prev) => (prev === w.word ? null : w.word))
-              }
-              onSkip={() => handleSkip(w.word)}
-              onAdd={() => handleAdd(w.word)}
-              onLearnDialogue={() => setDialogueWord(w)}
+              selected={selected.has(w.word)}
+              onSelect={() => toggle(w.word)}
             />
           ))}
           {words.length === 0 && (
@@ -247,29 +189,32 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
               <div className="mt-5 flex flex-col gap-3">
                 <motion.button
                   whileTap={{ scale: 0.97 }}
-                  onClick={() => setLearningMode("flashcards")}
+                  onClick={() => setLearningMode("text")}
                   className="flex items-center gap-4 rounded-2xl glass p-5 text-left transition-all hover:shadow-md"
                 >
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-                    <Layers size={22} className="text-primary" />
+                    <FileText size={22} className="text-primary" />
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground">Learn with Flashcards</p>
-                    <p className="text-[13px] text-muted-foreground">Flip cards to test your memory</p>
+                    <p className="font-semibold text-foreground">Generate Text</p>
+                    <p className="text-[13px] text-muted-foreground">Read words in natural context</p>
                   </div>
                 </motion.button>
 
                 <motion.button
                   whileTap={{ scale: 0.97 }}
-                  onClick={() => setLearningMode("text")}
+                  onClick={() => {
+                    setDialogueWords(selectedWords);
+                    setLearningMode("dialogue");
+                  }}
                   className="flex items-center gap-4 rounded-2xl glass p-5 text-left transition-all hover:shadow-md"
                 >
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-                    <BookOpen size={22} className="text-primary" />
+                    <MessageCircle size={22} className="text-primary" />
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground">Learn with Text</p>
-                    <p className="text-[13px] text-muted-foreground">Read words in natural context</p>
+                    <p className="font-semibold text-foreground">Learn in Dialogue</p>
+                    <p className="text-[13px] text-muted-foreground">Practice words in conversation</p>
                   </div>
                 </motion.button>
               </div>
