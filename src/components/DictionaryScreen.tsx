@@ -4,6 +4,7 @@ import { Sparkles, CheckCircle2, Layers, BookOpen } from "lucide-react";
 import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
 import FlashcardMode from "./FlashcardMode";
+import DialogueTraining from "./DialogueTraining";
 import ThemeToggle from "./ThemeToggle";
 
 interface WordData {
@@ -11,15 +12,75 @@ interface WordData {
   domain: string;
   relevance: number;
   definition: string;
+  translation: string;
+  examples: string[];
 }
 
 const initialWords: WordData[] = [
-  { word: "Asynchronous", domain: "IT", relevance: 9, definition: "A communication method where operations occur independently, without waiting for others to finish." },
-  { word: "Containerization", domain: "IT", relevance: 8, definition: "Packaging software with its dependencies into isolated, portable containers for deployment." },
-  { word: "Protocol", domain: "General/IT", relevance: 7, definition: "A formal set of rules governing data transmission between systems or networks." },
-  { word: "Myocardial", domain: "Medicine", relevance: 6, definition: "Relating to the muscular tissue of the heart, the myocardium." },
-  { word: "Deployment", domain: "IT", relevance: 8, definition: "The process of releasing software to a production environment for end users." },
-  { word: "Infrastructure", domain: "IT", relevance: 7, definition: "The foundational systems and hardware that support IT operations and services." },
+  {
+    word: "Negotiate",
+    domain: "General",
+    relevance: 7,
+    definition: "To discuss something in order to reach an agreement.",
+    translation: "Вести переговоры, договариваться",
+    examples: [
+      "We need to negotiate the terms of the contract.",
+      "She managed to negotiate a better deal.",
+    ],
+  },
+  {
+    word: "Asynchronous",
+    domain: "IT",
+    relevance: 9,
+    definition: "A communication method where operations occur independently, without waiting for others to finish.",
+    translation: "Асинхронный",
+    examples: [
+      "Asynchronous programming allows tasks to run concurrently.",
+      "The API uses asynchronous calls to improve performance.",
+    ],
+  },
+  {
+    word: "Containerization",
+    domain: "IT",
+    relevance: 8,
+    definition: "Packaging software with its dependencies into isolated, portable containers for deployment.",
+    translation: "Контейнеризация",
+    examples: [
+      "Docker popularized containerization in the software industry.",
+    ],
+  },
+  {
+    word: "Protocol",
+    domain: "General/IT",
+    relevance: 7,
+    definition: "A formal set of rules governing data transmission between systems or networks.",
+    translation: "Протокол",
+    examples: [
+      "HTTP is a widely used protocol for web communication.",
+      "The team agreed on a protocol for incident response.",
+    ],
+  },
+  {
+    word: "Myocardial",
+    domain: "Medicine",
+    relevance: 6,
+    definition: "Relating to the muscular tissue of the heart, the myocardium.",
+    translation: "Миокардиальный",
+    examples: [
+      "Myocardial infarction is a medical emergency requiring immediate treatment.",
+    ],
+  },
+  {
+    word: "Deployment",
+    domain: "IT",
+    relevance: 8,
+    definition: "The process of releasing software to a production environment for end users.",
+    translation: "Развёртывание",
+    examples: [
+      "The deployment pipeline automates testing and release.",
+      "We scheduled the deployment for midnight to minimize downtime.",
+    ],
+  },
 ];
 
 type LearningMode = null | "chooser" | "text" | "flashcards";
@@ -33,6 +94,8 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [words, setWords] = useState<WordData[]>(initialWords);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [learningMode, setLearningMode] = useState<LearningMode>(null);
+  const [expandedWord, setExpandedWord] = useState<string | null>(null);
+  const [dialogueWord, setDialogueWord] = useState<WordData | null>(null);
 
   const toggle = (word: string) => {
     setSelected((prev) => {
@@ -48,8 +111,30 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     setSelected(new Set());
   };
 
+  const handleSkip = (word: string) => {
+    setWords((prev) => prev.filter((w) => w.word !== word));
+    setExpandedWord(null);
+  };
+
+  const handleAdd = (word: string) => {
+    setSelected((prev) => new Set(prev).add(word));
+    setExpandedWord(null);
+  };
+
   const selectedWords = words.filter((w) => selected.has(w.word));
 
+  // Dialogue training mode
+  if (dialogueWord) {
+    return (
+      <DialogueTraining
+        word={dialogueWord.word}
+        definition={dialogueWord.definition}
+        onExit={() => setDialogueWord(null)}
+      />
+    );
+  }
+
+  // Flashcard mode
   if (learningMode === "flashcards") {
     return (
       <FlashcardMode
@@ -69,7 +154,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">My Dictionary</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Select words to generate a learning text.
+              Tap a word to expand · select to learn in batch.
             </p>
           </div>
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
@@ -83,8 +168,15 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
               domain={w.domain}
               relevance={w.relevance}
               definition={w.definition}
-              selected={selected.has(w.word)}
-              onToggle={() => toggle(w.word)}
+              translation={w.translation}
+              examples={w.examples}
+              expanded={expandedWord === w.word}
+              onToggleExpand={() =>
+                setExpandedWord((prev) => (prev === w.word ? null : w.word))
+              }
+              onSkip={() => handleSkip(w.word)}
+              onAdd={() => handleAdd(w.word)}
+              onLearnDialogue={() => setDialogueWord(w)}
             />
           ))}
           {words.length === 0 && (
