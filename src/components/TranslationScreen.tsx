@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Languages, BarChart3, FileText } from "lucide-react";
+import { ArrowRight, Languages, Tag, BarChart3, FileText, BookOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
 
@@ -59,17 +59,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
         example: `The concept of ${word.trim()} is widely discussed in professional literature.`,
       });
     }
-  };
-
-  const handleSkip = () => {
-    setResult(null);
-    setWord("");
-  };
-
-  const handleAdd = () => {
-    // TODO: add word to dictionary
-    setResult(null);
-    setWord("");
   };
 
   return (
@@ -140,24 +129,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Example</span>
               </div>
               <p className="text-[13px] italic leading-relaxed text-foreground/75">"{result.example}"</p>
-            </div>
-
-            {/* Skip / Add buttons */}
-            <div className="flex gap-3 mt-5">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={handleSkip}
-                className="flex-1 rounded-xl glass py-2.5 text-[14px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Skip
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={handleAdd}
-                className="flex-1 rounded-xl bg-primary py-2.5 text-[14px] font-semibold text-primary-foreground shadow-md shadow-primary/15 transition-all"
-              >
-                Add
-              </motion.button>
             </div>
           </motion.div>
         ) : (
