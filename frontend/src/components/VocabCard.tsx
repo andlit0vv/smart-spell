@@ -43,6 +43,7 @@ const getCategoryTone = (hex: string) => {
   const { r, g, b } = hexToRgb(hex);
   return {
     tagBackground: `rgba(${r}, ${g}, ${b}, 0.32)`,
+    panelBackground: `rgba(${r}, ${g}, ${b}, 0.22)`,
     border: `rgba(${r}, ${g}, ${b}, 0.6)`,
     text: `rgb(${Math.min(255, r + 105)}, ${Math.min(255, g + 105)}, ${Math.min(255, b + 105)})`,
   };
@@ -74,7 +75,7 @@ const VocabCard = ({
     setShowCreate(false);
   };
 
-  const renderDropdown = () => (
+  const renderDropdown = (anchorColor: string) => (
     <AnimatePresence>
       {isCategoryDropdownOpen && (
         <motion.div
@@ -83,7 +84,12 @@ const VocabCard = ({
           exit={{ opacity: 0, x: -6 }}
           transition={{ duration: 0.15 }}
           onClick={(event) => event.stopPropagation()}
-          className="absolute left-[calc(100%+8px)] top-1/2 z-30 -translate-y-1/2 w-[260px] rounded-2xl glass-modal p-2"
+          className="absolute left-[calc(100%+8px)] top-1/2 z-30 -translate-y-1/2 w-[260px] rounded-2xl p-2 shadow-xl"
+          style={{
+            backgroundColor: getCategoryTone(anchorColor).panelBackground,
+            border: `1px solid ${getCategoryTone(anchorColor).border}`,
+            backdropFilter: "blur(8px)",
+          }}
         >
           <div
             className="flex h-9 items-center gap-1 overflow-x-auto px-1"
@@ -126,7 +132,7 @@ const VocabCard = ({
           </div>
 
           {showCreate && (
-            <div className="mt-2 rounded-xl border border-white/15 bg-black/15 p-3 backdrop-blur-md">
+            <div className="mt-2 rounded-xl border border-white/10 bg-black/20 p-3">
               <p className="text-xs font-semibold text-zinc-200">Create category</p>
               <input
                 value={newCategoryName}
@@ -185,7 +191,7 @@ const VocabCard = ({
                     >
                       {category.name}
                     </button>
-                    {isCategoryDropdownOpen && activeAnchor === category.name && renderDropdown()}
+                    {isCategoryDropdownOpen && activeAnchor === category.name && renderDropdown(category.color)}
                   </div>
                 ))}
               </div>
@@ -205,7 +211,7 @@ const VocabCard = ({
                 >
                   <Plus size={12} />
                 </button>
-                {isCategoryDropdownOpen && activeAnchor === "plus" && renderDropdown()}
+                {isCategoryDropdownOpen && activeAnchor === "plus" && renderDropdown("#71717a")}
               </div>
             )}
           </div>
