@@ -75,7 +75,7 @@ const VocabCard = ({
     setShowCreate(false);
   };
 
-  const renderDropdown = (anchorColor: string) => (
+  const renderDropdown = () => (
     <AnimatePresence>
       {isCategoryDropdownOpen && (
         <motion.div
@@ -84,11 +84,9 @@ const VocabCard = ({
           exit={{ opacity: 0, x: -6 }}
           transition={{ duration: 0.15 }}
           onClick={(event) => event.stopPropagation()}
-          className="absolute left-[calc(100%+8px)] top-1/2 z-30 -translate-y-1/2 w-[260px] rounded-2xl p-2 shadow-xl"
+          className="absolute left-0 top-[calc(100%+8px)] z-[80] w-[260px] rounded-2xl border border-white/30 bg-white/12 p-2 shadow-xl shadow-black/25"
           style={{
-            backgroundColor: getCategoryTone(anchorColor).panelBackground,
-            border: `1px solid ${getCategoryTone(anchorColor).border}`,
-            backdropFilter: "blur(8px)",
+            backdropFilter: "blur(14px)",
           }}
         >
           <div
@@ -163,7 +161,7 @@ const VocabCard = ({
         selected
           ? "bg-card-selected border-2 border-card-selected-border shadow-lg shadow-card-selected-border/30"
           : "glass border-2 border-transparent"
-      }`}
+      } ${isCategoryDropdownOpen ? "z-30" : "z-0"}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -191,7 +189,7 @@ const VocabCard = ({
                     >
                       {category.name}
                     </button>
-                    {isCategoryDropdownOpen && activeAnchor === category.name && renderDropdown(category.color)}
+                    {isCategoryDropdownOpen && activeAnchor === category.name && renderDropdown()}
                   </div>
                 ))}
               </div>
@@ -211,7 +209,7 @@ const VocabCard = ({
                 >
                   <Plus size={12} />
                 </button>
-                {isCategoryDropdownOpen && activeAnchor === "plus" && renderDropdown("#71717a")}
+                {isCategoryDropdownOpen && activeAnchor === "plus" && renderDropdown()}
               </div>
             )}
           </div>
