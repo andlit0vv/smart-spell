@@ -7,20 +7,6 @@ interface WordCategory {
   color: string;
 }
 
-
-const getLightTint = (hexColor: string) => {
-  const normalized = hexColor.replace("#", "");
-  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return "#FFFFFF";
-
-  const red = parseInt(normalized.slice(0, 2), 16);
-  const green = parseInt(normalized.slice(2, 4), 16);
-  const blue = parseInt(normalized.slice(4, 6), 16);
-
-  const tint = (value: number) => Math.round(value + (255 - value) * 0.65);
-
-  return `rgb(${tint(red)}, ${tint(green)}, ${tint(blue)})`;
-};
-
 interface VocabCardProps {
   word: string;
   domain: string;
@@ -84,8 +70,8 @@ const VocabCard = ({
                       event.stopPropagation();
                       setShowDropdown((prev) => !prev);
                     }}
-                    className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: category.color, color: getLightTint(category.color) }}
+                    className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-white transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: category.color }}
                   >
                     {category.name}
                   </button>
@@ -132,8 +118,7 @@ const VocabCard = ({
             className="absolute right-5 top-11 z-30 w-[240px] rounded-2xl border border-white/10 bg-zinc-900/95 p-3 shadow-xl"
           >
             <div
-              className="overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-              style={{ touchAction: "none" }}
+              className="overflow-x-auto pb-1"
               onWheel={(event) => {
                 if (event.deltaY === 0) return;
                 event.currentTarget.scrollLeft += event.deltaY;
@@ -148,10 +133,10 @@ const VocabCard = ({
                       key={category.name}
                       type="button"
                       onClick={() => onCategoryToggle(category)}
-                      className={`group flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                      className={`group flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-white transition-all ${
                         assigned ? "ring-2 ring-white/40" : "opacity-75 hover:opacity-100"
                       }`}
-                      style={{ backgroundColor: category.color, color: getLightTint(category.color) }}
+                      style={{ backgroundColor: category.color }}
                     >
                       <span>{category.name}</span>
                       {assigned && <X size={11} className="hidden group-hover:block" />}
@@ -162,8 +147,7 @@ const VocabCard = ({
                 <button
                   type="button"
                   onClick={() => setShowCreate((prev) => !prev)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors"
-                  style={{ borderColor: "#7C2D12", backgroundColor: "#7C2D12", color: "#FDBA74" }}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-orange-400/30 bg-orange-500/20 text-orange-400 transition-colors hover:bg-orange-500/30"
                 >
                   <Plus size={14} />
                 </button>
