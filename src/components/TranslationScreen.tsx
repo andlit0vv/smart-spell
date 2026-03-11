@@ -43,9 +43,39 @@ const mockResults: Record<string, WordResult> = {
 const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   const [word, setWord] = useState("");
   const [result, setResult] = useState<WordResult | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!word.trim()) return;
+    const inputWord = word.trim();
+
+    setConnectionError(null);
+    setConnectionMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/translation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ word: inputWord }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Backend request failed");
+      }
+
+      setConnectionMessage(payload.message || "Connected to backend");
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : "Cannot connect to backend");
+    } finally {
+      setIsSubmitting(false);
+    }
+
     const key = word.trim().toLowerCase();
     const found = mockResults[key];
     if (found) {
@@ -94,12 +124,20 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={handleSubmit}
+          disabled={isSubmitting}
           className="flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
         >
-          <span className="hidden sm:inline">Enter a Word</span>
+          <span className="hidden sm:inline">{isSubmitting ? "Sending..." : "Enter a Word"}</span>
           <ArrowRight size={18} />
         </motion.button>
       </div>
+
+      {connectionMessage ? (
+        <p className="mt-3 text-sm text-emerald-500">{connectionMessage}</p>
+      ) : null}
+      {connectionError ? (
+        <p className="mt-3 text-sm text-red-500">{connectionError}</p>
+      ) : null}
 
       <AnimatePresence mode="wait">
         {result ? (
