@@ -59,6 +59,17 @@ const initialWords: WordData[] = [
 
 type LearningMode = null | "chooser" | "text" | "dialogue";
 
+const CATEGORY_PALETTE = ["#5D6BFF", "#8B5CF6", "#2BA8FF", "#22C55E", "#D946EF", "#F97316", "#EAB308"];
+
+const getColorFromName = (name: string) => {
+  const hash = name
+    .toLowerCase()
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+  return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length];
+};
+
 interface DictionaryScreenProps {
   theme: "light" | "dark";
   toggleTheme: () => void;
@@ -76,22 +87,28 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
         return [
           item.word,
-          categories.map((name, index) => ({
+          categories.map((name) => ({
             name,
-            color: ["#5D6BFF", "#2BA8FF", "#22C55E", "#D946EF"][index % 4],
+            color: getColorFromName(name),
           })),
         ];
       }),
     ),
   );
   const [availableCategories, setAvailableCategories] = useState<WordCategory[]>([
-    { name: "General", color: "#5D6BFF" },
-    { name: "IT", color: "#2BA8FF" },
-    { name: "Medicine", color: "#22C55E" },
+    { name: "General", color: getColorFromName("General") },
+    { name: "IT", color: getColorFromName("IT") },
+    { name: "Medicine", color: getColorFromName("Medicine") },
   ]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [learningMode, setLearningMode] = useState<LearningMode>(null);
   const [dialogueWords, setDialogueWords] = useState<WordData[]>([]);
+  const [openCategoryWord, setOpenCategoryWord] = useState<string | null>(null);
+
+  const getCategoryColor = (name: string) => {
+    const existing = availableCategories.find((item) => item.name.toLowerCase() === name.toLowerCase());
+    return existing?.color ?? getColorFromName(name);
+  };
 
   useEffect(() => {
     const loadDictionary = async () => {
@@ -104,6 +121,25 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
         }
 
         if (Array.isArray(payload.words)) {
+          const categorySet = new Set<string>();
+
+          payload.words.forEach((item: WordData) => {
+            item.domain
+              .split("/")
+              .map((category) => category.trim())
+              .filter(Boolean)
+              .forEach((category) => categorySet.add(category));
+          });
+
+          setAvailableCategories((prev) => {
+            const existing = new Set(prev.map((item) => item.name.toLowerCase()));
+            const additions = Array.from(categorySet)
+              .filter((category) => !existing.has(category.toLowerCase()))
+              .map((category) => ({ name: category, color: getColorFromName(category) }));
+
+            return additions.length ? [...prev, ...additions] : prev;
+          });
+
           setWords(payload.words);
           setWordCategories((prev) => {
             const next = { ...prev };
@@ -115,9 +151,9 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
                   .map((category) => category.trim())
                   .filter(Boolean);
 
-                next[item.word] = parsedCategories.map((name, index) => ({
+                next[item.word] = parsedCategories.map((name) => ({
                   name,
-                  color: ["#5D6BFF", "#2BA8FF", "#22C55E", "#D946EF"][index % 4],
+                  color: getCategoryColor(name),
                 }));
               }
             });
@@ -149,11 +185,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
   const selectedWords = words.filter((w) => selected.has(w.word));
 
-  const pickColor = () => {
-    const colors = ["#5D6BFF", "#2BA8FF", "#22C55E", "#D946EF", "#F97316", "#EAB308"];
-    return colors[Math.floor(Math.random() * colors.length)];
-  };
-
   const toggleCategoryForWord = (word: string, category: WordCategory) => {
     setWordCategories((prev) => {
       const current = prev[word] ?? [];
@@ -177,7 +208,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
         return prev;
       }
 
-      return [...prev, { name: trimmedName, color: pickColor() }];
+      return [...prev, { name: trimmedName, color: getColorFromName(trimmedName) }];
     });
   };
 
@@ -222,6 +253,8 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
               onSelect={() => toggle(w.word)}
               onCategoryToggle={(category) => toggleCategoryForWord(w.word, category)}
               onCategoryCreate={createCategory}
+              isCategoryDropdownOpen={openCategoryWord === w.word}
+              onCategoryDropdownChange={(open) => setOpenCategoryWord(open ? w.word : null)}
             />
           ))}
           {words.length === 0 && (
