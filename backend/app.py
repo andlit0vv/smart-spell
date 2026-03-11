@@ -98,7 +98,7 @@ def add_dictionary_word():
 
     saved_word = {
         'word': word,
-        'domain': 'New Word',
+        'domain': (data.get('domain') or '').strip(),
         'relevance': data.get('relevance') if isinstance(data.get('relevance'), int) else 0,
         'definition': definition,
     }
