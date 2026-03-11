@@ -56,7 +56,7 @@ const EnglishLevelModal = ({ onComplete }: EnglishLevelModalProps) => {
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-md rounded-2xl glass-modal-strong p-5"
+        className="w-full max-w-md rounded-2xl glass-modal-strong bg-background/90 dark:bg-background/95 p-5"
       >
         <h2 className="text-center text-xl font-bold text-foreground">Choose your English level</h2>
         <p className="mt-2 text-center text-sm text-muted-foreground">

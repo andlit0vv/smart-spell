@@ -87,7 +87,7 @@ const VocabCard = ({
           className="absolute left-0 top-[calc(100%+8px)] z-[80] w-[260px] rounded-2xl glass-modal-strong p-2 shadow-xl shadow-black/25"
         >
           <div
-            className="flex h-9 items-center gap-1 overflow-x-auto px-1"
+            className="scrollbar-none flex h-9 items-center gap-1 overflow-x-auto px-1"
             onWheel={(event) => {
               if (event.deltaY === 0) return;
               event.currentTarget.scrollLeft += event.deltaY;
