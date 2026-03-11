@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Save, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -12,9 +12,61 @@ interface ProfileScreenProps {
 const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
   const [bio, setBio] = useState("");
   const [name, setName] = useState("");
+  // Added loading flag to prevent double-save clicks while backend request is running.
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = () => {
-    toast.success("Profile saved successfully!");
+  useEffect(() => {
+    // Load the last profile state from backend memory when Profile screen opens.
+    const loadProfile = async () => {
+      try {
+        const response = await fetch("/api/profile");
+        if (!response.ok) return;
+        const payload = await response.json();
+        setName(payload.profile?.name || "");
+        setBio(payload.profile?.bio || "");
+      } catch {
+        // Intentionally ignore initial-load errors to keep screen usable offline.
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  const handleSave = async () => {
+    // Previously this handler only showed toast; now it performs real backend save.
+    // Validate empty profile so we do not send useless requests.
+    if (!name.trim() && !bio.trim()) {
+      toast.error("Please enter name or description first");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Send both name + bio to backend so they appear in IDE terminal and API response.
+      const response = await fetch("/api/profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          bio: bio.trim(),
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Profile save failed");
+      }
+
+      toast.success(payload.message || "Profile saved successfully!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Cannot connect to backend");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -53,6 +105,7 @@ const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
           <input
             type="text"
             value={name}
+            // Keep local state synced with user typing before sending on Save click.
             onChange={(e) => setName(e.target.value)}
             placeholder="Enter your name"
             className="mt-1.5 w-full rounded-xl bg-muted/50 border border-border px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
@@ -67,6 +120,7 @@ const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
           </p>
           <textarea
             value={bio}
+            // Keep local state synced with user typing before sending on Save click.
             onChange={(e) => setBio(e.target.value)}
             rows={5}
             placeholder="e.g. I'm a software engineer interested in cloud infrastructure…"
@@ -77,10 +131,11 @@ const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={handleSave}
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
+          disabled={isSaving}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform disabled:opacity-70"
         >
           <Save size={16} />
-          Save
+          {isSaving ? "Saving..." : "Save"}
         </motion.button>
       </motion.div>
     </div>

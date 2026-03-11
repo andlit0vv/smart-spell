@@ -82,11 +82,11 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
       setResult(found);
     } else {
       setResult({
-        word: word.trim(),
+        word: inputWord,
         category: "General",
-        definition: `A term referring to "${word.trim()}" — look it up in a specialized dictionary for a detailed definition.`,
+        definition: `A term referring to "${inputWord}" — look it up in a specialized dictionary for a detailed definition.`,
         relevance: 5,
-        example: `The concept of ${word.trim()} is widely discussed in professional literature.`,
+        example: `The concept of ${inputWord} is widely discussed in professional literature.`,
       });
     }
   };
