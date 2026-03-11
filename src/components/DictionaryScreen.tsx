@@ -85,8 +85,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   if (learningMode === "dialogue" && dialogueWords.length > 0) {
     return (
       <DialogueTraining
-        word={dialogueWords[0].word}
-        definition={dialogueWords[0].definition}
+        words={dialogueWords.map((w) => ({ word: w.word, definition: w.definition }))}
         onExit={() => {
           setLearningMode(null);
           setDialogueWords([]);
