@@ -33,8 +33,8 @@ const VocabCard = ({
       onClick={onSelect}
       className={`w-full rounded-2xl px-5 py-4 text-left transition-all duration-200 hover:shadow-lg ${
         selected
-          ? "bg-accent text-accent-foreground shadow-lg shadow-accent/25"
-          : "glass"
+          ? "bg-card-selected border-2 border-card-selected-border shadow-lg shadow-card-selected-border/30"
+          : "glass border-2 border-transparent"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
