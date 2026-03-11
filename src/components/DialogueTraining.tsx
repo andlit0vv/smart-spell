@@ -2,14 +2,18 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Send, CheckCircle, AlertCircle, ArrowRight, RotateCcw } from "lucide-react";
 
-interface DialogueTrainingProps {
+interface WordInfo {
   word: string;
   definition: string;
+}
+
+interface DialogueTrainingProps {
+  words: WordInfo[];
   onExit: () => void;
 }
 
 interface FeedbackData {
-  wordUsed: boolean;
+  wordsUsed: { word: string; used: boolean }[];
   grammarOk: boolean;
   suggestion: string;
 }
@@ -33,35 +37,34 @@ const scenarios = [
   },
 ];
 
-const generateFeedback = (answer: string, word: string): FeedbackData => {
-  const wordUsed = answer.toLowerCase().includes(word.toLowerCase());
+const generateFeedback = (answer: string, words: WordInfo[]): FeedbackData => {
+  const wordsUsed = words.map((w) => ({
+    word: w.word,
+    used: answer.toLowerCase().includes(w.word.toLowerCase()),
+  }));
   const grammarOk = answer.trim().length > 10 && answer.trim().endsWith(".");
-  
-  const suggestions: Record<string, string> = {
-    negotiate: `A more natural version could be: "I would like to ${word} my salary based on my recent performance and results."`,
-    asynchronous: `Try: "We should use ${word} communication to avoid blocking the team's progress."`,
-    deployment: `Consider: "The ${word} process should include automated testing to ensure reliability."`,
-  };
+  const allUsed = wordsUsed.every((w) => w.used);
+  const wordList = words.map((w) => w.word.toLowerCase()).join(", ");
 
-  return {
-    wordUsed,
-    grammarOk,
-    suggestion: suggestions[word.toLowerCase()] || `Good effort! Try using "${word}" more naturally in your sentence.`,
-  };
+  const suggestion = allUsed
+    ? `Great job using all target words! A more polished version could incorporate them even more naturally.`
+    : `Try to include all the words (${wordList}) in a single coherent response.`;
+
+  return { wordsUsed, grammarOk, suggestion };
 };
 
-const DialogueTraining = ({ word, definition, onExit }: DialogueTrainingProps) => {
+const DialogueTraining = ({ words, onExit }: DialogueTrainingProps) => {
   const [scenarioIndex, setScenarioIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<FeedbackData | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   const scenario = scenarios[scenarioIndex % scenarios.length];
+  const wordLabels = words.map((w) => w.word).join(", ");
 
   const handleSubmit = () => {
     if (!answer.trim()) return;
-    const fb = generateFeedback(answer, word);
-    setFeedback(fb);
+    setFeedback(generateFeedback(answer, words));
     setSubmitted(true);
   };
 
@@ -88,12 +91,19 @@ const DialogueTraining = ({ word, definition, onExit }: DialogueTrainingProps) =
         </div>
       </div>
 
-      {/* Target word badge */}
-      <div className="flex items-center gap-2 mb-5">
-        <span className="rounded-full bg-primary/15 px-4 py-1.5 text-[13px] font-bold text-primary">
-          {word}
+      {/* Target words */}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <span className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Target {words.length > 1 ? "Words" : "Word"}:
         </span>
-        <span className="text-[12px] text-muted-foreground">{definition}</span>
+        {words.map((w) => (
+          <span
+            key={w.word}
+            className="rounded-full bg-primary/15 px-3.5 py-1 text-[13px] font-bold text-primary"
+          >
+            {w.word}
+          </span>
+        ))}
       </div>
 
       {/* Situation card */}
@@ -128,19 +138,16 @@ const DialogueTraining = ({ word, definition, onExit }: DialogueTrainingProps) =
 
       {/* Answer input */}
       {!submitted ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="space-y-3"
-        >
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
           <label className="text-[12px] font-medium text-muted-foreground">
-            Write your answer using the word "<span className="text-primary font-semibold">{word}</span>"
+            Write your answer using {words.length > 1 ? "the words" : "the word"}{" "}
+            "<span className="text-primary font-semibold">{wordLabels}</span>"
           </label>
           <div className="relative">
             <textarea
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
-              placeholder={`Type your answer using "${word}"...`}
+              placeholder={`Type your answer using "${wordLabels}"...`}
               rows={3}
               className="w-full rounded-2xl glass px-4 py-3 pr-12 text-[14px] text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
             />
@@ -175,18 +182,20 @@ const DialogueTraining = ({ word, definition, onExit }: DialogueTrainingProps) =
                   Feedback
                 </p>
 
-                <div className="flex items-center gap-2">
-                  {feedback.wordUsed ? (
-                    <CheckCircle size={15} className="text-green-500 shrink-0" />
-                  ) : (
-                    <AlertCircle size={15} className="text-destructive shrink-0" />
-                  )}
-                  <p className="text-[13px] text-foreground">
-                    {feedback.wordUsed
-                      ? `Word "${word}" used correctly`
-                      : `Try to include the word "${word}" in your answer`}
-                  </p>
-                </div>
+                {feedback.wordsUsed.map((wu) => (
+                  <div key={wu.word} className="flex items-center gap-2">
+                    {wu.used ? (
+                      <CheckCircle size={15} className="text-green-500 shrink-0" />
+                    ) : (
+                      <AlertCircle size={15} className="text-destructive shrink-0" />
+                    )}
+                    <p className="text-[13px] text-foreground">
+                      {wu.used
+                        ? `"${wu.word}" used correctly`
+                        : `Try to include "${wu.word}" in your answer`}
+                    </p>
+                  </div>
+                ))}
 
                 <div className="flex items-center gap-2">
                   {feedback.grammarOk ? (
