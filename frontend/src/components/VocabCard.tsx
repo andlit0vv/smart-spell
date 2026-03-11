@@ -14,6 +14,7 @@ const domainColorMap: Record<string, string> = {
   Medicine: "bg-domain-medicine text-domain-medicine-foreground",
   "General/IT": "bg-domain-general text-domain-general-foreground",
   General: "bg-domain-general text-domain-general-foreground",
+  "New Word": "bg-muted text-muted-foreground",
 };
 
 const VocabCard = ({

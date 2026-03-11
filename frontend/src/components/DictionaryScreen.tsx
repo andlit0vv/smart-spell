@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, CheckCircle2, MessageCircle, BookOpen, FileText } from "lucide-react";
 import VocabCard from "./VocabCard";
@@ -64,6 +64,27 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [learningMode, setLearningMode] = useState<LearningMode>(null);
   const [dialogueWords, setDialogueWords] = useState<WordData[]>([]);
+
+  useEffect(() => {
+    const loadDictionary = async () => {
+      try {
+        const response = await fetch("/api/dictionary");
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Failed to load dictionary");
+        }
+
+        if (Array.isArray(payload.words)) {
+          setWords(payload.words);
+        }
+      } catch (error) {
+        console.error("[Dictionary] Failed to load words", error);
+      }
+    };
+
+    loadDictionary();
+  }, []);
 
   const toggle = (word: string) => {
     setSelected((prev) => {
