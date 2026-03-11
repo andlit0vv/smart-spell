@@ -43,20 +43,57 @@ const mockResults: Record<string, WordResult> = {
 const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   const [word, setWord] = useState("");
   const [result, setResult] = useState<WordResult | null>(null);
+  // Added request-state flag so the user sees that the word is being sent to backend.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Added success text from backend response to visibly confirm Frontend ↔ Backend connection.
+  const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
+  // Added error text to explain when backend is down or request failed.
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!word.trim()) return;
-    const key = word.trim().toLowerCase();
+    const inputWord = word.trim();
+
+    // Reset old status before sending a new word.
+    setConnectionError(null);
+    setConnectionMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      // Added backend call: submit the typed word to Flask API for connection check.
+      const response = await fetch("/api/translation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ word: inputWord }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Backend request failed");
+      }
+
+      // Show backend confirmation message in UI.
+      setConnectionMessage(payload.message || "Connected to backend");
+    } catch (error) {
+      // Show readable error when backend cannot be reached.
+      setConnectionError(error instanceof Error ? error.message : "Cannot connect to backend");
+    } finally {
+      setIsSubmitting(false);
+    }
+
+    const key = inputWord.toLowerCase();
     const found = mockResults[key];
     if (found) {
       setResult(found);
     } else {
       setResult({
-        word: word.trim(),
+        word: inputWord,
         category: "General",
-        definition: `A term referring to "${word.trim()}" — look it up in a specialized dictionary for a detailed definition.`,
+        definition: `A term referring to "${inputWord}" — look it up in a specialized dictionary for a detailed definition.`,
         relevance: 5,
-        example: `The concept of ${word.trim()} is widely discussed in professional literature.`,
+        example: `The concept of ${inputWord} is widely discussed in professional literature.`,
       });
     }
   };
@@ -94,12 +131,23 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={handleSubmit}
+          // Disable button while request is in-flight to prevent duplicate backend posts.
+          disabled={isSubmitting}
           className="flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
         >
-          <span className="hidden sm:inline">Enter a Word</span>
+          <span className="hidden sm:inline">{isSubmitting ? "Sending..." : "Enter a Word"}</span>
           <ArrowRight size={18} />
         </motion.button>
       </div>
+
+      {/* Added success line so user can immediately see that backend acknowledged the word. */}
+      {connectionMessage ? (
+        <p className="mt-3 text-sm text-emerald-500">{connectionMessage}</p>
+      ) : null}
+      {/* Added error line so connectivity problems are visible without opening DevTools. */}
+      {connectionError ? (
+        <p className="mt-3 text-sm text-red-500">{connectionError}</p>
+      ) : null}
 
       <AnimatePresence mode="wait">
         {result ? (
