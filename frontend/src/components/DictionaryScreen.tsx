@@ -13,11 +13,6 @@ interface WordData {
   definition: string;
 }
 
-interface WordCategory {
-  name: string;
-  color: string;
-}
-
 const initialWords: WordData[] = [
   {
     word: "Negotiate",
@@ -66,29 +61,6 @@ interface DictionaryScreenProps {
 
 const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [words, setWords] = useState<WordData[]>(initialWords);
-  const [wordCategories, setWordCategories] = useState<Record<string, WordCategory[]>>(() =>
-    Object.fromEntries(
-      initialWords.map((item) => {
-        const categories = item.domain
-          .split("/")
-          .map((category) => category.trim())
-          .filter(Boolean);
-
-        return [
-          item.word,
-          categories.map((name, index) => ({
-            name,
-            color: ["#5D6BFF", "#2BA8FF", "#22C55E", "#D946EF"][index % 4],
-          })),
-        ];
-      }),
-    ),
-  );
-  const [availableCategories, setAvailableCategories] = useState<WordCategory[]>([
-    { name: "General", color: "#5D6BFF" },
-    { name: "IT", color: "#2BA8FF" },
-    { name: "Medicine", color: "#22C55E" },
-  ]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [learningMode, setLearningMode] = useState<LearningMode>(null);
   const [dialogueWords, setDialogueWords] = useState<WordData[]>([]);
@@ -105,25 +77,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
         if (Array.isArray(payload.words)) {
           setWords(payload.words);
-          setWordCategories((prev) => {
-            const next = { ...prev };
-
-            payload.words.forEach((item: WordData) => {
-              if (!next[item.word]) {
-                const parsedCategories = item.domain
-                  .split("/")
-                  .map((category) => category.trim())
-                  .filter(Boolean);
-
-                next[item.word] = parsedCategories.map((name, index) => ({
-                  name,
-                  color: ["#5D6BFF", "#2BA8FF", "#22C55E", "#D946EF"][index % 4],
-                }));
-              }
-            });
-
-            return next;
-          });
         }
       } catch (error) {
         console.error("[Dictionary] Failed to load words", error);
@@ -148,38 +101,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   };
 
   const selectedWords = words.filter((w) => selected.has(w.word));
-
-  const pickColor = () => {
-    const colors = ["#5D6BFF", "#2BA8FF", "#22C55E", "#D946EF", "#F97316", "#EAB308"];
-    return colors[Math.floor(Math.random() * colors.length)];
-  };
-
-  const toggleCategoryForWord = (word: string, category: WordCategory) => {
-    setWordCategories((prev) => {
-      const current = prev[word] ?? [];
-      const exists = current.some((item) => item.name === category.name);
-
-      return {
-        ...prev,
-        [word]: exists
-          ? current.filter((item) => item.name !== category.name)
-          : [...current, category],
-      };
-    });
-  };
-
-  const createCategory = (name: string) => {
-    const trimmedName = name.trim();
-    if (!trimmedName) return;
-
-    setAvailableCategories((prev) => {
-      if (prev.some((item) => item.name.toLowerCase() === trimmedName.toLowerCase())) {
-        return prev;
-      }
-
-      return [...prev, { name: trimmedName, color: pickColor() }];
-    });
-  };
 
   // Dialogue training mode
   if (learningMode === "dialogue" && dialogueWords.length > 0) {
@@ -216,12 +137,8 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
               domain={w.domain}
               relevance={w.relevance}
               definition={w.definition}
-              categories={wordCategories[w.word] ?? []}
-              availableCategories={availableCategories}
               selected={selected.has(w.word)}
               onSelect={() => toggle(w.word)}
-              onCategoryToggle={(category) => toggleCategoryForWord(w.word, category)}
-              onCategoryCreate={createCategory}
             />
           ))}
           {words.length === 0 && (
