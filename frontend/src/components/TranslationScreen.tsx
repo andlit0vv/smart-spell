@@ -52,7 +52,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
 
       setResult({
         word: analysis.term || inputWord,
-        category: "General",
+        category: "New Word",
         definition: analysis.definition,
         relevance: typeof analysis.relevance === "number" ? analysis.relevance : 0,
         examples: Array.isArray(analysis.examples) ? analysis.examples : [],
@@ -72,9 +72,39 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   };
 
   const handleAdd = () => {
-    // TODO: add word to dictionary
-    setResult(null);
-    setWord("");
+    const saveWord = async () => {
+      if (!result) return;
+
+      setConnectionError(null);
+      setConnectionMessage(null);
+
+      try {
+        const response = await fetch("/api/dictionary", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            word: result.word,
+            definition: result.definition,
+            relevance: result.relevance,
+          }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "Failed to save word");
+        }
+
+        setConnectionMessage("Word added to dictionary");
+        setResult(null);
+        setWord("");
+      } catch (error) {
+        setConnectionError(error instanceof Error ? error.message : "Cannot connect to backend");
+      }
+    };
+
+    void saveWord();
   };
 
   return (
@@ -126,7 +156,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
           >
             <div className="flex items-start justify-between">
               <h2 className="text-xl font-bold text-foreground">{result.word}</h2>
-              <span className="inline-block rounded-full bg-primary/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+              <span className="inline-block rounded-full bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {result.category}
               </span>
             </div>
