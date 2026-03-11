@@ -68,3 +68,50 @@ npm run preview
 - TypeScript
 - Tailwind CSS
 - shadcn/ui
+
+
+## 5) Подключение Frontend ↔ Backend (Translation)
+
+### Backend (Flask)
+
+Файл backend/app.py принимает слово из поля **Type a word** по маршруту `POST /api/translation` и печатает его в консоль.
+
+Установите зависимости и запустите backend:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install flask
+python backend/app.py
+```
+
+Backend будет доступен на `http://localhost:5000`.
+
+### Frontend
+
+Во `vite.config.ts` добавлен proxy:
+- `/api` → `http://127.0.0.1:5000`
+
+Поэтому в React можно вызывать просто `fetch("/api/translation", ...)`.
+
+Запуск frontend:
+
+```bash
+npm install
+npm run dev
+```
+
+### Как проверить, что связь работает
+
+1. Запустите backend в одном терминале:
+   - `python backend/app.py`
+2. Запустите frontend во втором терминале:
+   - `npm run dev`
+3. Откройте `http://localhost:8080`, перейдите в **Translation**.
+4. Введите слово в поле `Type a word` и нажмите **Enter a Word**.
+5. Убедитесь:
+   - В браузере появился зелёный текст вида `Word "..." was received by backend`.
+   - В терминале backend появилась строка:
+     - `[Translation] Received word: ...`
+
+Если backend не запущен, на frontend появится сообщение об ошибке подключения.
