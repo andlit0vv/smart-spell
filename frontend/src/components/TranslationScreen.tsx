@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Languages, BarChart3, FileText } from "lucide-react";
+import { ArrowRight, Languages, BarChart3, FileText, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
 
@@ -10,7 +10,6 @@ interface TranslationScreenProps {
 
 interface WordResult {
   word: string;
-  category: string;
   definition: string;
   relevance: number;
   examples: string[];
@@ -52,7 +51,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
 
       setResult({
         word: analysis.term || inputWord,
-        category: "New Word",
         definition: analysis.definition,
         relevance: typeof analysis.relevance === "number" ? analysis.relevance : 0,
         examples: Array.isArray(analysis.examples) ? analysis.examples : [],
@@ -156,8 +154,12 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
           >
             <div className="flex items-start justify-between">
               <h2 className="text-xl font-bold text-foreground">{result.word}</h2>
-              <span className="inline-block rounded-full bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {result.category}
+              <span
+                aria-label="No category yet"
+                title="Add category after saving"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-zinc-600/60 text-zinc-200"
+              >
+                <Plus size={12} />
               </span>
             </div>
 

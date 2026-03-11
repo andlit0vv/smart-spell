@@ -18,7 +18,35 @@ interface VocabCardProps {
   onSelect?: () => void;
   onCategoryToggle: (category: WordCategory) => void;
   onCategoryCreate: (name: string) => void;
+  isCategoryDropdownOpen: boolean;
+  onCategoryDropdownChange: (open: boolean) => void;
 }
+
+const hexToRgb = (hex: string) => {
+  const normalized = hex.replace("#", "");
+  const safeHex = normalized.length === 3
+    ? normalized
+      .split("")
+      .map((char) => `${char}${char}`)
+      .join("")
+    : normalized;
+
+  const int = Number.parseInt(safeHex, 16);
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
+};
+
+const getCategoryTone = (hex: string) => {
+  const { r, g, b } = hexToRgb(hex);
+  return {
+    tagBackground: `rgba(${r}, ${g}, ${b}, 0.32)`,
+    border: `rgba(${r}, ${g}, ${b}, 0.6)`,
+    text: `rgb(${Math.min(255, r + 105)}, ${Math.min(255, g + 105)}, ${Math.min(255, b + 105)})`,
+  };
+};
 
 const VocabCard = ({
   word,
@@ -30,10 +58,12 @@ const VocabCard = ({
   onSelect,
   onCategoryToggle,
   onCategoryCreate,
+  isCategoryDropdownOpen,
+  onCategoryDropdownChange,
 }: VocabCardProps) => {
-  const [showDropdown, setShowDropdown] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
 
   const assignedNames = new Set(categories.map((item) => item.name));
 
@@ -43,6 +73,80 @@ const VocabCard = ({
     setNewCategoryName("");
     setShowCreate(false);
   };
+
+  const renderDropdown = () => (
+    <AnimatePresence>
+      {isCategoryDropdownOpen && (
+        <motion.div
+          initial={{ opacity: 0, x: -6 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -6 }}
+          transition={{ duration: 0.15 }}
+          onClick={(event) => event.stopPropagation()}
+          className="absolute left-[calc(100%+8px)] top-1/2 z-30 -translate-y-1/2 w-[260px] rounded-2xl glass-modal p-2"
+        >
+          <div
+            className="flex h-9 items-center gap-1 overflow-x-auto px-1"
+            onWheel={(event) => {
+              if (event.deltaY === 0) return;
+              event.currentTarget.scrollLeft += event.deltaY;
+            }}
+          >
+            {availableCategories.map((availableCategory) => {
+              const assigned = assignedNames.has(availableCategory.name);
+              const tone = getCategoryTone(availableCategory.color);
+
+              return (
+                <button
+                  key={availableCategory.name}
+                  type="button"
+                  onClick={() => onCategoryToggle(availableCategory)}
+                  className={`group flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                    assigned ? "ring-2 ring-white/30" : "opacity-80 hover:opacity-100"
+                  }`}
+                  style={{
+                    backgroundColor: tone.tagBackground,
+                    color: tone.text,
+                    border: `1px solid ${tone.border}`,
+                  }}
+                >
+                  <span>{availableCategory.name}</span>
+                  {assigned && <X size={11} className="hidden group-hover:block" />}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setShowCreate((prev) => !prev)}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-zinc-500/50 bg-zinc-700/70 text-zinc-200 transition-colors hover:bg-zinc-600/80"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+
+          {showCreate && (
+            <div className="mt-2 rounded-xl border border-white/15 bg-black/15 p-3 backdrop-blur-md">
+              <p className="text-xs font-semibold text-zinc-200">Create category</p>
+              <input
+                value={newCategoryName}
+                onChange={(event) => setNewCategoryName(event.target.value)}
+                placeholder="Category name"
+                className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-100 outline-none transition-colors focus:border-primary"
+              />
+              <button
+                type="button"
+                onClick={handleAddCategory}
+                className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                Add
+              </button>
+            </div>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   return (
     <motion.button
@@ -63,33 +167,46 @@ const VocabCard = ({
             {categories.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1.5">
                 {categories.map((category) => (
-                  <button
-                    key={category.name}
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setShowDropdown((prev) => !prev);
-                    }}
-                    className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-white transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: category.color }}
-                  >
-                    {category.name}
-                  </button>
+                  <div key={category.name} className="relative">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setShowCreate(false);
+                        setActiveAnchor(category.name);
+                        onCategoryDropdownChange(!isCategoryDropdownOpen);
+                      }}
+                      className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-opacity hover:opacity-90"
+                      style={{
+                        backgroundColor: getCategoryTone(category.color).tagBackground,
+                        color: getCategoryTone(category.color).text,
+                        border: `1px solid ${getCategoryTone(category.color).border}`,
+                      }}
+                    >
+                      {category.name}
+                    </button>
+                    {isCategoryDropdownOpen && activeAnchor === category.name && renderDropdown()}
+                  </div>
                 ))}
               </div>
             ) : (
-              <button
-                type="button"
-                aria-label="Add category"
-                title="Add category"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setShowDropdown((prev) => !prev);
-                }}
-                className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-600/60 text-zinc-200 transition-all hover:bg-zinc-500/80"
-              >
-                <Plus size={12} />
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="Add category"
+                  title="Add category"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShowCreate(false);
+                    setActiveAnchor("plus");
+                    onCategoryDropdownChange(!isCategoryDropdownOpen);
+                  }}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-600/60 text-zinc-200 transition-all hover:bg-zinc-500/80"
+                >
+                  <Plus size={12} />
+                </button>
+                {isCategoryDropdownOpen && activeAnchor === "plus" && renderDropdown()}
+              </div>
             )}
           </div>
 
@@ -106,75 +223,6 @@ const VocabCard = ({
           </span>
         </div>
       </div>
-
-      <AnimatePresence>
-        {showDropdown && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6 }}
-            transition={{ duration: 0.15 }}
-            onClick={(event) => event.stopPropagation()}
-            className="absolute right-5 top-11 z-30 w-[240px] rounded-2xl border border-white/10 bg-zinc-900/95 p-3 shadow-xl"
-          >
-            <div
-              className="overflow-x-auto pb-1"
-              onWheel={(event) => {
-                if (event.deltaY === 0) return;
-                event.currentTarget.scrollLeft += event.deltaY;
-              }}
-            >
-              <div className="flex w-max items-center gap-2">
-                {availableCategories.map((category) => {
-                  const assigned = assignedNames.has(category.name);
-
-                  return (
-                    <button
-                      key={category.name}
-                      type="button"
-                      onClick={() => onCategoryToggle(category)}
-                      className={`group flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-white transition-all ${
-                        assigned ? "ring-2 ring-white/40" : "opacity-75 hover:opacity-100"
-                      }`}
-                      style={{ backgroundColor: category.color }}
-                    >
-                      <span>{category.name}</span>
-                      {assigned && <X size={11} className="hidden group-hover:block" />}
-                    </button>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={() => setShowCreate((prev) => !prev)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-orange-400/30 bg-orange-500/20 text-orange-400 transition-colors hover:bg-orange-500/30"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            </div>
-
-            {showCreate && (
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-                <p className="text-xs font-semibold text-zinc-200">Create category</p>
-                <input
-                  value={newCategoryName}
-                  onChange={(event) => setNewCategoryName(event.target.value)}
-                  placeholder="Category name"
-                  className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-100 outline-none transition-colors focus:border-primary"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddCategory}
-                  className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-                >
-                  Add
-                </button>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.button>
   );
 };
