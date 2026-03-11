@@ -9,6 +9,7 @@ app = Flask(__name__)
 CURRENT_PROFILE = {
     'name': '',
     'bio': '',
+    'englishLevel': '',
 }
 
 CURRENT_DICTIONARY = [
@@ -60,13 +61,20 @@ def get_profile():
 @app.post('/api/profile')
 def save_profile():
     data = request.get_json(silent=True) or {}
-    name = (data.get('name') or '').strip()
-    bio = (data.get('bio') or '').strip()
+    if 'name' in data:
+        CURRENT_PROFILE['name'] = (data.get('name') or '').strip()
+    if 'bio' in data:
+        CURRENT_PROFILE['bio'] = (data.get('bio') or '').strip()
+    if 'englishLevel' in data:
+        CURRENT_PROFILE['englishLevel'] = (data.get('englishLevel') or '').strip()
 
-    CURRENT_PROFILE['name'] = name
-    CURRENT_PROFILE['bio'] = bio
-
-    print(f"[Profile] Saved profile: name='{name}', bio='{bio}'", flush=True)
+    print(
+        "[Profile] Saved profile: "
+        f"name='{CURRENT_PROFILE['name']}', "
+        f"bio='{CURRENT_PROFILE['bio']}', "
+        f"englishLevel='{CURRENT_PROFILE['englishLevel']}'",
+        flush=True,
+    )
 
     return jsonify({
         'message': 'Profile saved',
@@ -128,7 +136,11 @@ def translation_input():
     print(f"[Translation] Received word: {word}", flush=True)
 
     try:
-        analysis = analyze_term(word, user_bio=CURRENT_PROFILE.get('bio', ''))
+        analysis = analyze_term(
+            word,
+            user_bio=CURRENT_PROFILE.get('bio', ''),
+            user_level=CURRENT_PROFILE.get('englishLevel', ''),
+        )
     except LLMError as error:
         return jsonify({'error': str(error)}), 502
 

@@ -14,13 +14,14 @@ PROMPT_TEMPLATE = """You are a linguistic analysis assistant for an English lear
 Input:
 - term: an English word or phrase
 - user_profile_bio: free-form user description (profession, interests, goals)
+- user_level: current English level selected by user
 
 Your task is to analyze the term and return a JSON object with linguistic information.
 
 Core learner context:
-- Assume user level is B1-B2.
-- Relevance must prioritize what is useful for a B1-B2 learner right now.
-- Do NOT overrate advanced C1+ vocabulary just because it is prestigious or nuanced.
+- Learner level: {user_level}
+- Relevance must prioritize what is useful for the specified learner level right now.
+- Do NOT overrate advanced vocabulary that is above the selected level just because it is prestigious or nuanced.
 
 How to calculate relevance (0-10):
 Use a balanced score based on all 3 factors below:
@@ -66,6 +67,7 @@ JSON structure:
 
 term: {term}
 user_profile_bio: {user_bio}
+user_level: {user_level}
 """
 
 
@@ -103,13 +105,17 @@ def _extract_content(response_data: dict[str, Any]) -> str:
     return content
 
 
-def analyze_term(term: str, user_bio: str = "") -> TermAnalysis:
+def analyze_term(term: str, user_bio: str = "", user_level: str = "") -> TermAnalysis:
     _load_local_env()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise LLMError("OPENAI_API_KEY is not set")
 
-    prompt = PROMPT_TEMPLATE.format(term=term, user_bio=user_bio.strip() or "(empty)")
+    prompt = PROMPT_TEMPLATE.format(
+        term=term,
+        user_bio=user_bio.strip() or "(empty)",
+        user_level=user_level.strip() or "B1-B2",
+    )
 
     request_payload = {
         "model": os.getenv("OPENAI_MODEL", DEFAULT_MODEL),
