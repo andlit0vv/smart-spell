@@ -1,5 +1,7 @@
 from flask import Flask, jsonify, request
 
+from llm import LLMError, analyze_term
+
 app = Flask(__name__)
 
 # Temporary in-memory storage for a single local user profile.
@@ -26,10 +28,15 @@ def translation_input():
 
     print(f"[Translation] Received word: {word}", flush=True)
 
+    try:
+        analysis = analyze_term(word)
+    except LLMError as error:
+        return jsonify({'error': str(error)}), 502
+
     return jsonify({
         'received': True,
         'word': word,
-        'message': f'Word "{word}" was received by backend'
+        'analysis': analysis.to_dict(),
     })
 
 

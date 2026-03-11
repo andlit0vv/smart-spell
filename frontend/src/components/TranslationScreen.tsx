@@ -13,32 +13,8 @@ interface WordResult {
   category: string;
   definition: string;
   relevance: number;
-  example: string;
+  examples: string[];
 }
-
-const mockResults: Record<string, WordResult> = {
-  deployment: {
-    word: "Deployment",
-    category: "IT",
-    definition: "The process of releasing and installing software applications, updates, or patches from a development environment to a production environment where end users can access them.",
-    relevance: 8,
-    example: "The team scheduled the deployment for midnight to minimize user disruption.",
-  },
-  asynchronous: {
-    word: "Asynchronous",
-    category: "IT",
-    definition: "A method of communication or processing where operations occur independently of the main program flow, allowing tasks to execute without waiting for others to complete.",
-    relevance: 9,
-    example: "Asynchronous API calls improve the responsiveness of web applications.",
-  },
-  protocol: {
-    word: "Protocol",
-    category: "General/IT",
-    definition: "A formal set of rules, conventions, or standards that govern how data is transmitted and received across networks or between computing systems.",
-    relevance: 7,
-    example: "HTTP is the primary protocol used for transferring web pages on the internet.",
-  },
-};
 
 const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   const [word, setWord] = useState("");
@@ -69,25 +45,24 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
         throw new Error(payload.error || "Backend request failed");
       }
 
-      setConnectionMessage(payload.message || "Connected to backend");
+      const analysis = payload.analysis;
+      if (!analysis) {
+        throw new Error("Backend returned no analysis");
+      }
+
+      setResult({
+        word: analysis.term || inputWord,
+        category: "General",
+        definition: analysis.definition,
+        relevance: typeof analysis.relevance === "number" ? analysis.relevance : 0,
+        examples: Array.isArray(analysis.examples) ? analysis.examples : [],
+      });
+      setConnectionMessage("Analysis received from backend");
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : "Cannot connect to backend");
+      setResult(null);
     } finally {
       setIsSubmitting(false);
-    }
-
-    const key = word.trim().toLowerCase();
-    const found = mockResults[key];
-    if (found) {
-      setResult(found);
-    } else {
-      setResult({
-        word: inputWord,
-        category: "General",
-        definition: `A term referring to "${inputWord}" — look it up in a specialized dictionary for a detailed definition.`,
-        relevance: 5,
-        example: `The concept of ${inputWord} is widely discussed in professional literature.`,
-      });
     }
   };
 
@@ -177,7 +152,11 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
                 <FileText size={12} className="text-muted-foreground" />
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Example</span>
               </div>
-              <p className="text-[13px] italic leading-relaxed text-foreground/75">"{result.example}"</p>
+              <ul className="list-disc pl-4 space-y-1 text-[13px] italic leading-relaxed text-foreground/75">
+                {result.examples.map((example, index) => (
+                  <li key={`${result.word}-${index}`}>{example}</li>
+                ))}
+              </ul>
             </div>
 
             {/* Skip / Add buttons */}
