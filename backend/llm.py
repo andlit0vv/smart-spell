@@ -9,42 +9,51 @@ from llm_validation import LLMValidationError, TermAnalysis, validate_analysis_r
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-4.1-mini"
 
-PROMPT_TEMPLATE = """You are a linguistic analysis assistant.
+PROMPT_TEMPLATE = """You are a linguistic analysis assistant for an English learner.
 
-Input: an English word or phrase.
+Input:
+- term: an English word or phrase
+- user_profile_bio: free-form user description (profession, interests, goals)
 
-Your task is to analyze it and return a JSON object with linguistic information.
+Your task is to analyze the term and return a JSON object with linguistic information.
 
-Rules:
+Core learner context:
+- Assume user level is B1-B2.
+- Relevance must prioritize what is useful for a B1-B2 learner right now.
+- Do NOT overrate advanced C1+ vocabulary just because it is prestigious or nuanced.
 
+How to calculate relevance (0-10):
+Use a balanced score based on all 3 factors below:
+1) General everyday frequency in modern English.
+2) Practical usefulness for B1-B2 communication.
+3) Personal relevance to user_profile_bio (profession/interests/goals).
+
+Personalization rule:
+- If bio indicates IT/software/engineering, increase relevance for IT-related terms.
+- If bio indicates medicine/healthcare, increase relevance for medical terms.
+- Apply similar logic for other domains.
+- If bio is empty or vague, rely on factors (1) and (2).
+
+Calibration rule (important):
+- Be stricter with scores 8-10; reserve them for words truly common and high-value for B1-B2.
+- Rare/specialized or clearly advanced C1+ words should usually be lower (often around 4-6 unless strongly needed by user bio).
+- Avoid inflated scoring.
+
+Additional rules:
 1. Definition
 - Provide a short English definition (max 10 words, one sentence).
-- If the word/phrase has multiple common meanings, include them concisely in one definition.
+- If term has multiple common meanings, include them concisely in one definition.
 
-2. Relevance score (0–10)
-Estimate how frequently the word/phrase is used in modern English (2026 context).
-
-Use this scale:
-0–1 → obsolete or almost never used
-2–3 → very rare or narrow technical usage (e.g., medical/legal jargon)
-4–5 → uncommon but still known
-6–7 → moderately common
-8–9 → very common in everyday language
-10 → extremely common across contexts
-
-3. Examples
-Generate natural English sentences demonstrating real usage.
-
-Rules for examples:
+2. Examples
+- Generate natural English sentences demonstrating real usage.
 - At least 2 examples.
-- If the word/phrase has multiple meanings, provide at least one example per meaning.
+- If term has multiple meanings, provide at least one example per meaning.
 - Sentences must be clear and realistic.
 
-4. Output format
-Return ONLY valid JSON. No explanations.
+3. Output format
+- Return ONLY valid JSON. No explanations.
 
 JSON structure:
-
 {
   "term": "<input word or phrase>",
   "relevance": <0-10>,
@@ -55,7 +64,8 @@ JSON structure:
   ]
 }
 
-Term: {term}
+term: {term}
+user_profile_bio: {user_bio}
 """
 
 
@@ -93,13 +103,13 @@ def _extract_content(response_data: dict[str, Any]) -> str:
     return content
 
 
-def analyze_term(term: str) -> TermAnalysis:
+def analyze_term(term: str, user_bio: str = "") -> TermAnalysis:
     _load_local_env()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise LLMError("OPENAI_API_KEY is not set")
 
-    prompt = PROMPT_TEMPLATE.format(term=term)
+    prompt = PROMPT_TEMPLATE.format(term=term, user_bio=user_bio.strip() or "(empty)")
 
     request_payload = {
         "model": os.getenv("OPENAI_MODEL", DEFAULT_MODEL),

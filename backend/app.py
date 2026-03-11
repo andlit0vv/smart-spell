@@ -12,6 +12,29 @@ CURRENT_PROFILE = {
 }
 
 
+@app.get('/api/profile')
+def get_profile():
+    # Return current in-memory profile values (reset on backend restart).
+    return jsonify({'profile': CURRENT_PROFILE})
+
+
+@app.post('/api/profile')
+def save_profile():
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    bio = (data.get('bio') or '').strip()
+
+    CURRENT_PROFILE['name'] = name
+    CURRENT_PROFILE['bio'] = bio
+
+    print(f"[Profile] Saved profile: name='{name}', bio='{bio}'", flush=True)
+
+    return jsonify({
+        'message': 'Profile saved',
+        'profile': CURRENT_PROFILE,
+    })
+
+
 @app.get('/health')
 def health_check():
     # Basic endpoint to quickly verify that backend is alive.
@@ -29,7 +52,7 @@ def translation_input():
     print(f"[Translation] Received word: {word}", flush=True)
 
     try:
-        analysis = analyze_term(word)
+        analysis = analyze_term(word, user_bio=CURRENT_PROFILE.get('bio', ''))
     except LLMError as error:
         return jsonify({'error': str(error)}), 502
 
