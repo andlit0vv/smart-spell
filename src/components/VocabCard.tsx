@@ -31,8 +31,10 @@ const VocabCard = ({
       layout
       whileTap={{ scale: 0.98 }}
       onClick={onSelect}
-      className={`w-full rounded-2xl glass px-5 py-4 text-left transition-all duration-200 hover:shadow-lg ${
-        selected ? "ring-2 ring-primary shadow-md shadow-primary/10" : ""
+      className={`w-full rounded-2xl px-5 py-4 text-left transition-all duration-200 hover:shadow-lg ${
+        selected
+          ? "bg-card-selected border-2 border-card-selected-border shadow-lg shadow-card-selected-border/30"
+          : "glass border-2 border-transparent"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
