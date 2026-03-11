@@ -50,12 +50,12 @@
     --nav-active: 37 91% 55%;
     --nav-inactive: 220 10% 62%;
 
-    --glass-bg: 0 0% 100% / 0.55;
-    --glass-border: 0 0% 100% / 0.7;
-    --glass-blur: 16px;
+    --glass-bg: 0 0% 100% / 0.78;
+    --glass-border: 0 0% 100% / 0.82;
+    --glass-blur: 24px;
     --glass-shadow: 0 4px 24px -4px hsla(220, 20%, 14%, 0.08);
 
-    --nav-glass: 0 0% 100% / 0.72;
+    --nav-glass: 0 0% 100% / 0.86;
   }
 
   .dark {
@@ -101,12 +101,12 @@
     --nav-active: 30 100% 50%;
     --nav-inactive: 220 8% 52%;
 
-    --glass-bg: 225 12% 12% / 0.5;
-    --glass-border: 225 10% 20% / 0.6;
-    --glass-blur: 16px;
+    --glass-bg: 225 12% 12% / 0.72;
+    --glass-border: 225 10% 24% / 0.8;
+    --glass-blur: 24px;
     --glass-shadow: 0 4px 24px -4px hsla(0, 0%, 0%, 0.3);
 
-    --nav-glass: 225 12% 10% / 0.72;
+    --nav-glass: 225 12% 10% / 0.84;
   }
 }
 
@@ -137,15 +137,15 @@
   .glass-nav {
     background: hsl(var(--nav-glass));
     border-top: 1px solid hsl(var(--glass-border));
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(calc(var(--glass-blur) + 8px));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 8px));
   }
 
   .glass-modal {
     background: hsl(var(--glass-bg));
     border: 1px solid hsl(var(--glass-border));
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(calc(var(--glass-blur) + 12px));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 12px));
     box-shadow: 0 8px 40px -8px hsla(220, 20%, 14%, 0.15);
   }
 

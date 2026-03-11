@@ -84,10 +84,7 @@ const VocabCard = ({
           exit={{ opacity: 0, x: -6 }}
           transition={{ duration: 0.15 }}
           onClick={(event) => event.stopPropagation()}
-          className="absolute left-0 top-[calc(100%+8px)] z-[80] w-[260px] rounded-2xl border border-white/30 bg-white/12 p-2 shadow-xl shadow-black/25"
-          style={{
-            backdropFilter: "blur(14px)",
-          }}
+          className="absolute left-0 top-[calc(100%+8px)] z-[80] w-[260px] rounded-2xl glass-modal p-2 shadow-xl shadow-black/25"
         >
           <div
             className="flex h-9 items-center gap-1 overflow-x-auto px-1"
