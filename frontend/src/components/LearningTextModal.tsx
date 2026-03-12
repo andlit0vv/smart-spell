@@ -1,12 +1,21 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface Props {
   open: boolean;
   selectedWords: string[];
   onClose: () => void;
+}
+
+interface WordAnalysisCard {
+  word: string;
+  definition: string;
+  relevance: number;
+  examples: string[];
+  translationRu: string;
+  isInDictionary: boolean;
 }
 
 const normalizeStem = (word: string) => {
@@ -61,7 +70,7 @@ const ReadingText = ({ text, stems, words }: { text: string; stems: Set<string>;
   const parts = text.split(/(\s+)/);
 
   return (
-    <p className="text-[15px] leading-relaxed text-foreground/85">
+    <p className="text-[15px] leading-relaxed text-foreground/85 select-text">
       {parts.map((part, index) => {
         if (/^\s+$/.test(part)) return <span key={`${part}-${index}`}>{part}</span>;
 
@@ -88,6 +97,10 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [storyPrompt, setStoryPrompt] = useState("");
+  const [analysisCard, setAnalysisCard] = useState<WordAnalysisCard | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
+  const [dictionaryLoading, setDictionaryLoading] = useState(false);
 
   const targetWordsSet = useMemo(
     () => new Set(selectedWords.map((word) => word.toLowerCase())),
@@ -102,6 +115,8 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
     if (!selectedWords.length) return;
     setLoading(true);
     setError("");
+    setAnalysisCard(null);
+    setAnalysisError("");
 
     try {
       const response = await fetch("/api/reading/generate", {
@@ -127,6 +142,104 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
     }
   };
 
+  const checkWordInDictionary = async (word: string) => {
+    const response = await fetch("/api/dictionary");
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "Failed to load dictionary");
+    }
+
+    const existingWords = Array.isArray(payload.words) ? payload.words : [];
+    return existingWords.some((item: { word?: string }) => item.word?.toLowerCase() === word.toLowerCase());
+  };
+
+  const requestWordAnalysis = async (selectedText: string) => {
+    const normalizedSelection = selectedText.replace(/\s+/g, " ").trim();
+    if (!normalizedSelection) return;
+
+    setAnalysisLoading(true);
+    setAnalysisError("");
+
+    try {
+      const response = await fetch("/api/translation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ word: normalizedSelection }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Backend request failed");
+      }
+
+      const analysis = payload.analysis;
+      if (!analysis) {
+        throw new Error("Backend returned no analysis");
+      }
+
+      const isInDictionary = await checkWordInDictionary(analysis.term || normalizedSelection);
+
+      setAnalysisCard({
+        word: analysis.term || normalizedSelection,
+        definition: analysis.definition,
+        relevance: typeof analysis.relevance === "number" ? analysis.relevance : 0,
+        examples: Array.isArray(analysis.examples) ? analysis.examples : [],
+        translationRu: typeof payload.translationRu === "string" ? payload.translationRu : "",
+        isInDictionary,
+      });
+    } catch (requestError) {
+      setAnalysisError(requestError instanceof Error ? requestError.message : "Cannot analyze selected text");
+      setAnalysisCard(null);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const handleTextSelection = () => {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString() || "";
+
+    if (!selectedText.trim()) return;
+
+    void requestWordAnalysis(selectedText);
+    selection?.removeAllRanges();
+  };
+
+  const handleDictionaryAction = async () => {
+    if (!analysisCard) return;
+
+    setDictionaryLoading(true);
+    setAnalysisError("");
+
+    try {
+      const response = await fetch("/api/dictionary", {
+        method: analysisCard.isInDictionary ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          word: analysisCard.word,
+          definition: analysisCard.definition,
+          relevance: analysisCard.relevance,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Dictionary update failed");
+      }
+
+      setAnalysisCard((prev) => (prev ? { ...prev, isInDictionary: !prev.isInDictionary } : prev));
+    } catch (dictionaryError) {
+      setAnalysisError(dictionaryError instanceof Error ? dictionaryError.message : "Cannot update dictionary");
+    } finally {
+      setDictionaryLoading(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -141,7 +254,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
-            className="mx-auto flex h-full max-w-lg flex-col px-5 pt-6"
+            className="relative mx-auto flex h-full max-w-lg flex-col px-5 pt-6"
           >
             <h1 className="text-xl font-bold tracking-tight text-foreground">Generated Learning Text</h1>
 
@@ -186,12 +299,16 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               </button>
             </div>
 
-            <div className="mt-5 flex-1 overflow-y-auto pb-6">
+            <div className="mt-5 flex-1 overflow-y-auto pb-40">
               {error && <p className="text-sm text-red-500">{error}</p>}
               {!error && !text && !loading && (
                 <p className="text-sm text-muted-foreground">Select options and generate a reading text.</p>
               )}
-              {text && <ReadingText text={text} stems={targetStems} words={targetWordsSet} />}
+              {text && (
+                <div onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
+                  <ReadingText text={text} stems={targetStems} words={targetWordsSet} />
+                </div>
+              )}
             </div>
 
             <div className="pb-8 pt-4">
@@ -204,6 +321,64 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
                 Back to Dictionary
               </motion.button>
             </div>
+
+            <AnimatePresence>
+              {(analysisLoading || analysisError || analysisCard) && (
+                <motion.div
+                  initial={{ y: 24, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 24, opacity: 0 }}
+                  className="absolute bottom-24 left-5 right-5 z-20 rounded-2xl border border-border/60 bg-background/95 p-3 shadow-xl backdrop-blur"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-foreground">
+                        {analysisLoading ? "Analyzing..." : analysisCard?.word || "Selection details"}
+                      </p>
+                      {!analysisLoading && analysisCard?.translationRu && (
+                        <p className="text-xs text-muted-foreground">{analysisCard.translationRu}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setAnalysisCard(null);
+                        setAnalysisError("");
+                      }}
+                      className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {analysisError && <p className="mt-2 text-xs text-red-500">{analysisError}</p>}
+
+                  {!analysisLoading && analysisCard && (
+                    <>
+                      <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-foreground/85">{analysisCard.definition}</p>
+                      {analysisCard.examples.length > 0 && (
+                        <p className="mt-2 line-clamp-2 text-[11px] italic text-muted-foreground">{analysisCard.examples[0]}</p>
+                      )}
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-medium text-muted-foreground">Relevance: {analysisCard.relevance}/10</span>
+                        <button
+                          onClick={handleDictionaryAction}
+                          disabled={dictionaryLoading}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60 ${
+                            analysisCard.isInDictionary ? "bg-red-500" : "bg-orange-500"
+                          }`}
+                        >
+                          {dictionaryLoading
+                            ? "..."
+                            : analysisCard.isInDictionary
+                              ? "Delete"
+                              : "Add"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </motion.div>
       )}
