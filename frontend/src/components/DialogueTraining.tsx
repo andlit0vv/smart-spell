@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, RotateCcw, Send, ArrowRight, RefreshCw, GraduationCap } from "lucide-react";
+import { ArrowLeft, RotateCcw, Send, ArrowRight, RefreshCw, GraduationCap, Pencil } from "lucide-react";
 
 interface WordInfo {
   word: string;
@@ -32,6 +32,7 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
   const [situation, setSituation] = useState("");
   const [initialSituation, setInitialSituation] = useState("");
   const [question, setQuestion] = useState("");
+  const [isEditingSituation, setIsEditingSituation] = useState(false);
   const [answer, setAnswer] = useState("");
   const [state, setState] = useState<PracticeState>({
     target_words: targetWords,
@@ -80,6 +81,7 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
       setSituation(payload.situation || "");
       setInitialSituation(payload.situation || "");
       setQuestion(payload.question || "");
+      setIsEditingSituation(false);
       if (payload.practice_state) setState(payload.practice_state);
       setFeedback({ message: "", correction: "" });
       setAnswer("");
@@ -104,6 +106,7 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
       if (!response.ok) throw new Error(payload.error || "Failed to regenerate question");
       setQuestion(payload.question || "");
       setInitialSituation(situation);
+      setIsEditingSituation(false);
     } catch (error) {
       console.error("[Dialogue] Question generation failed", error);
     } finally {
@@ -169,16 +172,26 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
       <div className="mb-3 rounded-2xl glass p-5">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Situation</p>
-          <button onClick={generateScenario} className="text-primary" aria-label="Refresh situation">
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsEditingSituation((prev) => !prev)}
+              className="text-primary"
+              aria-label="Edit situation"
+            >
+              <Pencil size={16} />
+            </button>
+            <button onClick={generateScenario} className="text-primary" aria-label="Refresh situation">
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            </button>
+          </div>
         </div>
         <textarea
           value={situation}
           onChange={(e) => setSituation(e.target.value)}
           onBlur={regenerateQuestion}
+          readOnly={!isEditingSituation}
           rows={3}
-          className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 read-only:opacity-80"
         />
       </div>
 

@@ -341,7 +341,9 @@ def register_dialog_endpoints(app):
         messages: list[str] = []
         corrections: list[str] = []
 
-        for word in used_words:
+        words_to_check = used_words if used_words else [state.target_words[0]]
+
+        for word in words_to_check:
             try:
                 llm_response = _call_llm(
                     CHECK_PROMPT.format(
@@ -354,18 +356,23 @@ def register_dialog_endpoints(app):
                 return jsonify({"error": str(exc)}), 502
 
             status = str(llm_response.get("status") or "").strip().lower()
-            if status == "correct":
+            if status == "correct" and word in used_words:
                 correct_words.append(word)
                 state.word_status[word] = "correct"
             else:
-                incorrect_words.append(word)
-                state.word_status[word] = "incorrect"
+                if word in used_words:
+                    incorrect_words.append(word)
+                    state.word_status[word] = "incorrect"
                 message = str(llm_response.get("message") or "").strip()
                 correction = str(llm_response.get("correction") or "").strip()
                 if message:
                     messages.append(f"{word}: {message}")
                 if correction:
                     corrections.append(f"{word}: {correction}")
+
+        if not used_words:
+            missing_list = ", ".join(missing_words)
+            messages.insert(0, f"Please include at least one target word in your answer: {missing_list}.")
 
         for word in missing_words:
             if state.word_status.get(word) != "correct":
