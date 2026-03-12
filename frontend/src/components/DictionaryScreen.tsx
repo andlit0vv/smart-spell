@@ -183,6 +183,16 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     setSelected(new Set());
   };
 
+  const handleDialogueFinish = (markAsLearned: boolean) => {
+    if (markAsLearned) {
+      setWords((prev) => prev.filter((w) => !selected.has(w.word)));
+    }
+
+    setLearningMode(null);
+    setDialogueWords([]);
+    setSelected(new Set());
+  };
+
   const selectedWords = words.filter((w) => selected.has(w.word));
 
   const toggleCategoryForWord = (word: string, category: WordCategory) => {
@@ -222,6 +232,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
           setDialogueWords([]);
           setSelected(new Set());
         }}
+        onFinishPractice={handleDialogueFinish}
       />
     );
   }
