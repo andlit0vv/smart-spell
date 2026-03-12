@@ -17,6 +17,7 @@ interface WordCategory {
   id: string;
   name: string;
   group: "topic";
+  color: string;
 }
 
 interface DictionaryScreenProps {
@@ -39,6 +40,31 @@ const createCategoryId = (name: string, group: WordCategory["group"]) =>
   `${group}:${name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
 
 const groupFromDomain = (_domain: string): WordCategory["group"] => "topic";
+
+const PRESET_CATEGORY_COLORS: Record<string, string> = {
+  it: "#a855f7",
+  general: "#f97316",
+  medicine: "#22c55e",
+};
+
+const createRandomColor = () => `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")}`;
+
+const hexToRgba = (hexColor: string, alpha: number) => {
+  const normalized = hexColor.replace("#", "");
+  const sanitized = normalized.length === 3
+    ? normalized.split("").map((symbol) => `${symbol}${symbol}`).join("")
+    : normalized;
+
+  const parsed = Number.parseInt(sanitized, 16);
+  const red = (parsed >> 16) & 255;
+  const green = (parsed >> 8) & 255;
+  const blue = parsed & 255;
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+};
+
+const resolveCategoryColor = (name: string, fallback?: string) =>
+  PRESET_CATEGORY_COLORS[name.toLowerCase().trim()] ?? fallback ?? createRandomColor();
 
 const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [words, setWords] = useState<WordData[]>(initialWords);
@@ -71,7 +97,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   }, []);
 
   useEffect(() => {
-    const baseCategories: Record<string, WordCategory> = {};
+    const baseCategories: Record<string, Omit<WordCategory, "color">> = {};
     const assignments: Record<string, string[]> = {};
 
     words.forEach((item) => {
@@ -91,7 +117,19 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
       assignments[item.word] = Array.from(new Set(ids));
     });
 
-    setCategoriesById((prev) => ({ ...baseCategories, ...prev }));
+    setCategoriesById((prev) => {
+      const merged: Record<string, WordCategory> = { ...prev };
+
+      Object.values(baseCategories).forEach((category) => {
+        const previous = prev[category.id];
+        merged[category.id] = {
+          ...category,
+          color: resolveCategoryColor(category.name, previous?.color),
+        };
+      });
+
+      return merged;
+    });
     setWordCategoryIds((prev) => ({ ...assignments, ...prev }));
   }, [words]);
 
@@ -158,7 +196,10 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     const id = createCategoryId(trimmed, "topic");
     setCategoriesById((prev) => {
       if (prev[id]) return prev;
-      return { ...prev, [id]: { id, name: trimmed, group: "topic" } };
+      return {
+        ...prev,
+        [id]: { id, name: trimmed, group: "topic", color: resolveCategoryColor(trimmed) },
+      };
     });
     setNewCategoryName("");
   };
@@ -203,7 +244,12 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
               <button
                 key={group}
                 type="button"
-                onClick={() => setFilterGroup(group)}
+                onClick={() => {
+                  setFilterGroup(group);
+                  if (group === "all") {
+                    setCategoryFilters(new Set(allCategories.map((category) => category.id)));
+                  }
+                }}
                 className={`rounded-lg px-2 py-1.5 text-[11px] font-semibold capitalize ${filterGroup === group ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
               >
                 {group === "topic" ? "topics" : group}
@@ -219,9 +265,12 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
                   key={category.id}
                   type="button"
                   onClick={() => toggleCategoryFilter(category.id)}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                    active ? "border-primary bg-primary/20 text-primary" : "border-border/70 bg-background/50 text-muted-foreground"
-                  }`}
+                  className="rounded-full border px-3 py-1 text-xs font-semibold transition"
+                  style={{
+                    borderColor: active ? hexToRgba(category.color, 0.8) : "rgba(148, 163, 184, 0.4)",
+                    backgroundColor: active ? hexToRgba(category.color, 0.2) : "rgba(148, 163, 184, 0.08)",
+                    color: active ? category.color : "rgb(100, 116, 139)",
+                  }}
                 >
                   {category.name}
                 </button>
@@ -300,8 +349,12 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
                       type="button"
                       onClick={() => toggleWordCategory(activeWord, category.id)}
                       className={`rounded-xl border px-3 py-2 text-left text-sm ${
-                        assigned ? "border-primary bg-primary/15 text-foreground" : "border-border/70 bg-background/50 text-muted-foreground"
+                        assigned ? "text-foreground" : "text-muted-foreground"
                       }`}
+                      style={{
+                        borderColor: assigned ? hexToRgba(category.color, 0.8) : "rgba(148, 163, 184, 0.4)",
+                        backgroundColor: assigned ? hexToRgba(category.color, 0.2) : "rgba(148, 163, 184, 0.08)",
+                      }}
                     >
                       <p className="font-semibold">{category.name}</p>
                       <p className="text-[11px] uppercase tracking-wide">topics</p>

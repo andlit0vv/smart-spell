@@ -273,14 +273,12 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               />
 
               <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/40 px-3 py-2">
-                <div>
-                  <p className="text-xs font-medium text-foreground/85">Allow different word forms</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Example: <span className="text-foreground/70">write</span> → <span className="text-foreground/70">writing</span>
-                  </p>
-                </div>
+                <p className="text-sm font-semibold text-foreground">Allow different word forms</p>
                 <Switch checked={allowWordForms} onCheckedChange={setAllowWordForms} />
               </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Example writing, write and writing.
+              </p>
 
               <button
                 onClick={generateText}
