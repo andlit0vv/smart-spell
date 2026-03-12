@@ -227,7 +227,17 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
       </div>
 
       <div className="mb-4 rounded-2xl glass p-5">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">Question</p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Question</p>
+          <button
+            onClick={nextQuestion}
+            disabled={questionLoading || loading}
+            className="text-primary disabled:opacity-60"
+            aria-label="Generate another question"
+          >
+            <ArrowRight size={16} />
+          </button>
+        </div>
         <p className="text-sm text-foreground">{questionLoading ? "Updating question..." : question}</p>
       </div>
 
@@ -282,19 +292,12 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
             <RotateCcw size={15} /> Start Over
           </button>
           <button
-            onClick={nextQuestion}
-            disabled={questionLoading || loading}
-            className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold disabled:opacity-60"
+            onClick={() => setShowFinishModal(true)}
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
           >
-            <ArrowRight size={15} /> Another Question
+            <GraduationCap size={15} /> Finish Practice
           </button>
         </div>
-        <button
-          onClick={() => setShowFinishModal(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-        >
-          <GraduationCap size={15} /> Finish Practice
-        </button>
       </div>
 
       {showFinishModal && (
