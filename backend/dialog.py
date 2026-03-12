@@ -44,9 +44,16 @@ INSTRUCTIONS
 10. The situation should be 1–2 sentences.
 11. The question should be 1 sentence.
 12. If the situation does not naturally allow the TARGET_WORD to be used in the answer, regenerate the situation.
-13. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
-14. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
-15. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
+13. The new situation must be radically different from PREVIOUS_SITUATIONS.
+14. Do NOT paraphrase or lightly tweak an earlier situation. Change at least 3 dimensions at once:
+   - domain (e.g., work, travel, health, study, family, finance, hobbies)
+   - participants/roles (e.g., manager-client vs parent-child vs traveler-agent)
+   - immediate objective and obstacle
+15. If a generated idea overlaps semantically with any previous one (same core problem with different wording), discard it and generate a completely new scenario.
+16. Prioritize novelty over continuity unless USER_DESCRIPTION explicitly requires repeating one domain.
+17. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
+18. If USER_DESCRIPTION is vague, force high diversity by choosing distant domains each time (e.g., healthcare triage, lost luggage, online shopping return, apartment maintenance, exam prep, sports coaching).
+19. Before finalizing, do a self-check: "Is this a new situation with a different underlying meaning, not a rephrase?" If not, regenerate.
 
 OUTPUT FORMAT (JSON)
 
@@ -68,7 +75,22 @@ Generate one question (1 sentence) that logically follows the situation and enco
 The learner should be able to naturally use one or more target words in the answer.
 Do not include any target word directly inside the question.
 Use language suitable for LEVEL.
-If PREVIOUS_QUESTION is provided, create a new question with a different angle and wording while staying in the same situation.
+If PREVIOUS_QUESTION is provided, create a completely new question for the same SITUATION with a different communicative goal.
+
+STRICT DIVERSITY RULES
+1. Never paraphrase PREVIOUS_QUESTION.
+2. The new question must change the intent, not only wording. For example, switch between:
+   - explanation of cause
+   - decision making and trade-offs
+   - prediction of consequences
+   - prioritization
+   - comparison of options
+   - risk mitigation
+   - personal action plan
+3. If the new question could be answered with essentially the same answer as PREVIOUS_QUESTION, regenerate it.
+4. Keep one clear question sentence, but make it semantically distinct.
+5. Do not include target words directly in the question.
+6. Before finalizing, self-check: "Would this require a genuinely different answer than PREVIOUS_QUESTION?" If no, regenerate.
 
 OUTPUT FORMAT (JSON)
 {{
