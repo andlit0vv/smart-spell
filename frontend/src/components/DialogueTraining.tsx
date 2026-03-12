@@ -222,6 +222,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
           onBlur={() => void regenerateQuestion()}
           readOnly={!isEditingSituation}
           rows={3}
+          maxLength={160}
           className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 read-only:opacity-80"
         />
       </div>

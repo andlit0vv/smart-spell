@@ -355,7 +355,7 @@ def _normalize_word_stem(word: str) -> str:
 def _fallback_generate_response(target_word: str, english_level: str) -> dict[str, str]:
     level_label = english_level or "B1"
     return {
-        "situation": (
+        "situation": _limit_situation_length(
             f"You are preparing for an important conversation at {level_label} level and need to explain your idea clearly."
         ),
         "question": _limit_question_length(f"How would you use the word '{target_word}' naturally in your response?"),
@@ -391,7 +391,6 @@ def register_dialog_endpoints(app):
                     previous_situations=" | ".join(state.situation_history[-5:]) or "none",
                 )
                 ,
-                temperature=0.9,
             )
         except DialogLLMError as exc:
             print(f"[Dialog] /generate fallback due to LLM error: {exc}", flush=True)
@@ -414,7 +413,7 @@ def register_dialog_endpoints(app):
     @app.post("/api/dialog/question")
     def dialog_question():
         data = flask_request.get_json(silent=True) or {}
-        situation = (data.get("situation") or "").strip()
+        situation = _limit_situation_length(str(data.get("situation") or ""))
         target_words = _normalize_target_words(data.get("target_words"))
         if not situation:
             return jsonify({"error": "situation is required"}), 400
