@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 
 from llm import LLMError, analyze_term
+from translation import TranslationError, translate_word_to_russian
 from dialog import register_dialog_endpoints
 from reading import register_reading_endpoints
 
@@ -148,10 +149,17 @@ def translation_input():
     except LLMError as error:
         return jsonify({'error': str(error)}), 502
 
+    translated_word = ''
+    try:
+        translated_word = translate_word_to_russian(word)
+    except TranslationError as error:
+        print(f"[Translation] Russian translation failed for '{word}': {error}", flush=True)
+
     return jsonify({
         'received': True,
         'word': word,
         'analysis': analysis.to_dict(),
+        'translationRu': translated_word,
     })
 
 
