@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Languages, BarChart3, FileText, Plus } from "lucide-react";
+import { ArrowRight, Languages, BarChart3, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
 
@@ -13,6 +13,7 @@ interface WordResult {
   definition: string;
   relevance: number;
   examples: string[];
+  translationRu: string;
 }
 
 const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
@@ -54,6 +55,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
         definition: analysis.definition,
         relevance: typeof analysis.relevance === "number" ? analysis.relevance : 0,
         examples: Array.isArray(analysis.examples) ? analysis.examples : [],
+        translationRu: typeof payload.translationRu === "string" ? payload.translationRu : "",
       });
       setConnectionMessage("Analysis received from backend");
     } catch (error) {
@@ -154,12 +156,8 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
           >
             <div className="flex items-start justify-between">
               <h2 className="text-xl font-bold text-foreground">{result.word}</h2>
-              <span
-                aria-label="No category yet"
-                title="Add category after saving"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-zinc-600/60 text-zinc-200"
-              >
-                <Plus size={12} />
+              <span className="text-sm font-medium text-zinc-400">
+                {result.translationRu || "—"}
               </span>
             </div>
 
