@@ -15,10 +15,15 @@ DEFAULT_MODEL = "gpt-4.1-mini"
 
 
 MAX_QUESTION_LENGTH = 160
+MAX_SITUATION_LENGTH = 160
 
 
 def _limit_question_length(question: str) -> str:
     return question.strip()[:MAX_QUESTION_LENGTH]
+
+
+def _limit_situation_length(situation: str) -> str:
+    return situation.strip()[:MAX_SITUATION_LENGTH]
 
 GENERATE_PROMPT = """You are an English learning exercise generator.
 
@@ -396,7 +401,7 @@ def register_dialog_endpoints(app):
             print(f"[Dialog] /generate fallback due to LLM error: {exc}", flush=True)
             llm_response = _fallback_generate_response(focus_word, english_level)
 
-        situation = str(llm_response.get("situation") or "").strip()
+        situation = _limit_situation_length(str(llm_response.get("situation") or ""))
         question = _limit_question_length(str(llm_response.get("question") or ""))
         if situation:
             state.situation_history.append(situation)
