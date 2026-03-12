@@ -80,6 +80,33 @@ const getColorFromName = (name: string) => {
   return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length];
 };
 
+const hexToRgb = (hex: string) => {
+  const normalized = hex.replace("#", "");
+  const safeHex = normalized.length === 3
+    ? normalized
+      .split("")
+      .map((char) => `${char}${char}`)
+      .join("")
+    : normalized;
+
+  const int = Number.parseInt(safeHex, 16);
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
+};
+
+const getCategoryTone = (hex: string) => {
+  const { r, g, b } = hexToRgb(hex);
+  return {
+    background: `rgba(${r}, ${g}, ${b}, 0.2)`,
+    activeBackground: `rgba(${r}, ${g}, ${b}, 0.35)`,
+    border: `rgba(${r}, ${g}, ${b}, 0.9)`,
+    text: `rgb(${Math.min(255, r + 35)}, ${Math.min(255, g + 35)}, ${Math.min(255, b + 35)})`,
+  };
+};
+
 interface DictionaryScreenProps {
   theme: "light" | "dark";
   toggleTheme: () => void;
@@ -111,6 +138,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     { name: "Medicine", color: getColorFromName("Medicine") },
   ]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
   const [learningMode, setLearningMode] = useState<LearningMode>(null);
   const [dialogueWords, setDialogueWords] = useState<WordData[]>([]);
   const [openCategoryWord, setOpenCategoryWord] = useState<string | null>(null);
@@ -204,6 +232,27 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     setSelected(new Set());
   };
 
+  const toggleCategoryFilter = (categoryName: string) => {
+    setCategoryFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryName)) {
+        next.delete(categoryName);
+      } else {
+        next.add(categoryName);
+      }
+      return next;
+    });
+  };
+
+  const filteredWords = words.filter((word) => {
+    if (categoryFilters.size === 0) {
+      return true;
+    }
+
+    const categories = wordCategories[word.word] ?? [];
+    return categories.some((category) => categoryFilters.has(category.name));
+  });
+
   const selectedWords = words.filter((w) => selected.has(w.word));
 
   const toggleCategoryForWord = (word: string, category: WordCategory) => {
@@ -261,8 +310,52 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
         </div>
 
-        <div className="mt-5 flex flex-col gap-2.5">
-          {words.map((w) => (
+        <div className="mt-5 rounded-2xl glass px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Filter by category</p>
+            {categoryFilters.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setCategoryFilters(new Set())}
+                className="text-xs font-semibold text-primary transition-opacity hover:opacity-80"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {availableCategories.map((category) => {
+              const selectedFilter = categoryFilters.has(category.name);
+              const tone = getCategoryTone(category.color);
+
+              return (
+                <button
+                  key={category.name}
+                  type="button"
+                  onClick={() => toggleCategoryFilter(category.name)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-all ${
+                    selectedFilter ? "shadow-md" : "opacity-80 hover:opacity-100"
+                  }`}
+                  style={{
+                    backgroundColor: selectedFilter ? tone.activeBackground : tone.background,
+                    borderColor: tone.border,
+                    color: tone.text,
+                  }}
+                >
+                  {category.name}
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="mt-2 text-xs text-muted-foreground">
+            Showing {filteredWords.length} of {words.length} words
+          </p>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2.5">
+          {filteredWords.map((w) => (
             <VocabCard
               key={w.word}
               word={w.word}
@@ -284,6 +377,14 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
               <div className="rounded-2xl glass p-8">
                 <BookOpen size={36} className="text-muted-foreground/40 mx-auto" />
                 <p className="mt-3 text-sm text-muted-foreground">All words marked as learned!</p>
+              </div>
+            </div>
+          )}
+          {words.length > 0 && filteredWords.length === 0 && (
+            <div className="flex flex-col items-center py-14 text-center">
+              <div className="rounded-2xl glass px-8 py-7">
+                <BookOpen size={32} className="mx-auto text-muted-foreground/40" />
+                <p className="mt-3 text-sm text-muted-foreground">No words in selected categories.</p>
               </div>
             </div>
           )}
