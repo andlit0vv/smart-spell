@@ -10,6 +10,7 @@ interface WordInfo {
 interface DialogueTrainingProps {
   words: WordInfo[];
   onExit: () => void;
+  onFinishPractice: (markAsLearned: boolean, masteredWords: string[]) => void;
   targetCategory?: string;
 }
 
@@ -20,7 +21,7 @@ interface PracticeState {
   total_words: number;
 }
 
-const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingProps) => {
+const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: DialogueTrainingProps) => {
   const targetWords = useMemo(() => words.map((item) => item.word), [words]);
   const [practiceId, setPracticeId] = useState<string | null>(null);
   const [level, setLevel] = useState("B1");
@@ -45,6 +46,7 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
     correction: "",
   });
   const [complete, setComplete] = useState(false);
+  const [showFinishModal, setShowFinishModal] = useState(false);
 
   const progress = state.total_words > 0 ? (state.correct_count / state.total_words) * 100 : 0;
 
@@ -264,28 +266,61 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
         </div>
       )}
 
-      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mt-5 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={restartPractice}
+            className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold"
+          >
+            <RotateCcw size={15} /> Start Over
+          </button>
+          <button
+            onClick={nextQuestion}
+            disabled={questionLoading || loading}
+            className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold disabled:opacity-60"
+          >
+            <ArrowRight size={15} /> Another Question
+          </button>
+        </div>
         <button
-          onClick={restartPractice}
-          className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold"
+          onClick={() => setShowFinishModal(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
         >
-          <RotateCcw size={15} /> Start Over
-        </button>
-        <button
-          onClick={nextQuestion}
-          disabled={questionLoading || loading}
-          className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold disabled:opacity-60"
-        >
-          <ArrowRight size={15} /> Next Question
-        </button>
-        <button
-          onClick={generateScenario}
-          disabled={complete || loading}
-          className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-        >
-          <GraduationCap size={15} /> Learn and Practice
+          <GraduationCap size={15} /> Finish Practice
         </button>
       </div>
+
+      {showFinishModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center px-5" onClick={() => setShowFinishModal(false)}>
+          <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl glass-modal p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-center text-lg font-bold text-foreground">Do you want to save the progress?</h2>
+            <p className="mt-2 text-center text-sm text-muted-foreground">Choose what to do with practiced words.</p>
+            <div className="mt-5 space-y-2.5">
+              <button
+                onClick={() => {
+                  setShowFinishModal(false);
+                  onFinishPractice(false, []);
+                }}
+                className="w-full rounded-xl glass px-4 py-3 text-sm font-semibold text-foreground"
+              >
+                Keep words in dictionary
+              </button>
+              <button
+                onClick={() => {
+                  setShowFinishModal(false);
+                  onFinishPractice(true, Object.entries(state.word_status)
+                    .filter(([, status]) => status === "correct")
+                    .map(([word]) => word));
+                }}
+                className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+              >
+                Mark words as learned
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
