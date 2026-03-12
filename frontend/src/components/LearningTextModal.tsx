@@ -111,7 +111,6 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
           target_words: selectedWords,
           allow_word_forms: allowWordForms,
           story_prompt: storyPrompt.trim() || undefined,
-          words_per_term: 15,
         }),
       });
 
