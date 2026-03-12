@@ -10,7 +10,7 @@ interface WordInfo {
 interface DialogueTrainingProps {
   words: WordInfo[];
   onExit: () => void;
-  onFinishPractice: (markAsLearned: boolean) => void;
+  onFinishPractice: (markAsLearned: boolean, learnedWords: string[]) => void;
   targetCategory?: string;
 }
 
@@ -47,6 +47,13 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
   });
   const [complete, setComplete] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
+
+  const learnedWords = useMemo(
+    () => Object.entries(state.word_status)
+      .filter(([, status]) => status === "correct")
+      .map(([word]) => word),
+    [state.word_status],
+  );
 
   const progress = state.total_words > 0 ? (state.correct_count / state.total_words) * 100 : 0;
 
@@ -300,7 +307,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
               <button
                 onClick={() => {
                   setShowFinishModal(false);
-                  onFinishPractice(false);
+                  onFinishPractice(false, []);
                 }}
                 className="w-full rounded-xl glass px-4 py-3 text-sm font-semibold text-foreground"
               >
@@ -309,7 +316,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
               <button
                 onClick={() => {
                   setShowFinishModal(false);
-                  onFinishPractice(true);
+                  onFinishPractice(true, learnedWords);
                 }}
                 className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
               >
