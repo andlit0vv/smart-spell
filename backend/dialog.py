@@ -266,6 +266,22 @@ def _word_present(answer: str, word: str) -> bool:
     return bool(re.search(pattern, normalized_answer, flags=re.IGNORECASE))
 
 
+def _fallback_generate_response(target_word: str, english_level: str) -> dict[str, str]:
+    level_label = english_level or "B1"
+    return {
+        "situation": (
+            f"You are preparing for an important conversation at {level_label} level and need to explain your idea clearly."
+        ),
+        "question": f"How would you use the word '{target_word}' naturally in your response?",
+    }
+
+
+def _fallback_question_response(situation: str) -> dict[str, str]:
+    trimmed = situation.strip()
+    return {
+        "question": f"Given this situation, what would you say and why?" if trimmed else "What would you say in this case?"
+    }
+
 def register_dialog_endpoints(app):
     @app.post("/api/dialog/generate")
     def dialog_generate():
@@ -278,16 +294,18 @@ def register_dialog_endpoints(app):
         remaining = _remaining_words(state)
         focus_word = remaining[0] if remaining else target_words[0]
 
+        english_level = (data.get("level") or "B1").strip()
         try:
             llm_response = _call_llm(
                 GENERATE_PROMPT.format(
                     user_description=(data.get("user_description") or "").strip() or "English learner",
                     target_word=focus_word,
-                    english_level=(data.get("level") or "B1").strip(),
+                    english_level=english_level,
                 )
             )
         except DialogLLMError as exc:
-            return jsonify({"error": str(exc)}), 502
+            print(f"[Dialog] /generate fallback due to LLM error: {exc}", flush=True)
+            llm_response = _fallback_generate_response(focus_word, english_level)
 
         return jsonify(
             {
@@ -308,16 +326,18 @@ def register_dialog_endpoints(app):
         if not target_words:
             return jsonify({"error": "target_words must be a non-empty array"}), 400
 
+        english_level = (data.get("level") or "B1").strip()
         try:
             llm_response = _call_llm(
                 QUESTION_PROMPT.format(
                     situation=situation,
                     target_words=", ".join(target_words),
-                    english_level=(data.get("level") or "B1").strip(),
+                    english_level=english_level,
                 )
             )
         except DialogLLMError as exc:
-            return jsonify({"error": str(exc)}), 502
+            print(f"[Dialog] /question fallback due to LLM error: {exc}", flush=True)
+            llm_response = _fallback_question_response(situation)
 
         return jsonify({"question": str(llm_response.get("question") or "").strip()})
 
@@ -341,7 +361,9 @@ def register_dialog_endpoints(app):
         messages: list[str] = []
         corrections: list[str] = []
 
-        for word in used_words:
+        words_to_check = used_words if used_words else [state.target_words[0]]
+
+        for word in words_to_check:
             try:
                 llm_response = _call_llm(
                     CHECK_PROMPT.format(
@@ -354,18 +376,23 @@ def register_dialog_endpoints(app):
                 return jsonify({"error": str(exc)}), 502
 
             status = str(llm_response.get("status") or "").strip().lower()
-            if status == "correct":
+            if status == "correct" and word in used_words:
                 correct_words.append(word)
                 state.word_status[word] = "correct"
             else:
-                incorrect_words.append(word)
-                state.word_status[word] = "incorrect"
+                if word in used_words:
+                    incorrect_words.append(word)
+                    state.word_status[word] = "incorrect"
                 message = str(llm_response.get("message") or "").strip()
                 correction = str(llm_response.get("correction") or "").strip()
                 if message:
                     messages.append(f"{word}: {message}")
                 if correction:
                     corrections.append(f"{word}: {correction}")
+
+        if not used_words:
+            missing_list = ", ".join(missing_words)
+            messages.insert(0, f"Please include at least one target word in your answer: {missing_list}.")
 
         for word in missing_words:
             if state.word_status.get(word) != "correct":
