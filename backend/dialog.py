@@ -19,7 +19,8 @@ Your task is to create a short practice scenario for an English learner.
 
 INPUT VARIABLES
 USER_DESCRIPTION: {user_description}
-TARGET_WORD: {target_word}
+TARGET_WORDS: {target_words}
+FOCUS_WORD: {focus_word}
 LEVEL: {english_level}
 PREVIOUS_SITUATIONS: {previous_situations}
 
@@ -28,25 +29,28 @@ Generate:
 1) A realistic situation related to the user's professional or personal context.
 2) A question based on that situation.
 
-The learner must answer the question using the TARGET_WORD.
+The learner must answer the question using TARGET_WORDS.
 
 INSTRUCTIONS
 
 1. Carefully analyze USER_DESCRIPTION to understand the user's profession, interests, and typical environment.
 2. Generate a realistic situation connected to that context (work meeting, interview, presentation, discussion, negotiation, technical problem, etc.).
-3. The situation must logically create an opportunity to use TARGET_WORD in the answer.
-4. The situation must be specific and concrete.
-5. Do NOT explain the TARGET_WORD.
-6. Do NOT include the TARGET_WORD inside the question.
-7. The question must logically follow the situation.
-8. The question must encourage explanation, description, or justification.
-9. Language must match LEVEL.
-10. The situation should be 1–2 sentences.
-11. The question should be 1 sentence.
-12. If the situation does not naturally allow the TARGET_WORD to be used in the answer, regenerate the situation.
-13. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
-14. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
-15. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
+3. The situation must logically create opportunities to use as many TARGET_WORDS as possible in one answer.
+4. Prioritize broad, flexible contexts where multiple words from TARGET_WORDS can fit naturally together.
+5. FOCUS_WORD must definitely be usable in the answer.
+6. The situation must be specific and concrete.
+7. Do NOT explain target words.
+8. Do NOT include target words inside the question.
+9. The question must logically follow the situation.
+10. The question must encourage explanation, description, or justification.
+11. Language must match LEVEL.
+12. The situation should be 1–2 sentences.
+13. The question should be 1 sentence.
+14. If the situation does not naturally allow multiple TARGET_WORDS (or at least FOCUS_WORD) to be used in the answer, regenerate the situation.
+15. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
+16. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
+17. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
+18. Prefer situations where very different words (abstract + concrete, technical + everyday) can still be used naturally in one response.
 
 OUTPUT FORMAT (JSON)
 
@@ -91,9 +95,8 @@ Analyze the learner’s sentence and check:
 
 1. Grammar correctness
 2. Correct and natural use of TARGET_WORD
-3. Naturalness of phrasing in modern English
-4. Presence of outdated or awkward vocabulary
-5. Correct word form and sentence structure
+3. Correct word form and sentence structure
+4. Optional style improvements (clarity, precision, natural alternatives)
 
 INSTRUCTIONS
 
@@ -108,6 +111,11 @@ INSTRUCTIONS
 - The learner level is LEVEL, but still detect genuine errors normally.
 - The TARGET_WORD should be represented in the answer in a correct and natural way.
 - Different grammatical/derivational forms of TARGET_WORD are acceptable (e.g., containerization/containerize), if the same lexical root is used appropriately.
+- IMPORTANT: Do NOT mark as incorrect for register/style reasons alone (for example: "too informal", "awkward but understandable", "unclear but acceptable", "could be more specific").
+- These style points must be returned as optional tips, not as errors.
+- Mark as "incorrect" only for genuine language errors: broken grammar, wrong word form, clearly unnatural/incorrect TARGET_WORD usage, or meaning-breaking structure.
+- If grammar and TARGET_WORD usage are acceptable, return status "correct" and optionally include a short tip.
+- Tip format should be concise and recommendation-only.
 
 OUTPUT FORMAT
 
@@ -117,7 +125,8 @@ If the sentence is correct:
 
 {{
   "status": "correct",
-  "message": "Great!"
+  "message": "Great!",
+  "tip": "Optional recommendation, or empty string"
 }}
 
 If the sentence contains errors:
@@ -367,7 +376,8 @@ def register_dialog_endpoints(app):
             llm_response = _call_llm(
                 GENERATE_PROMPT.format(
                     user_description=(data.get("user_description") or "").strip() or "English learner",
-                    target_word=focus_word,
+                    target_words=", ".join(target_words),
+                    focus_word=focus_word,
                     english_level=english_level,
                     previous_situations=" | ".join(state.situation_history[-5:]) or "none",
                 )
@@ -440,6 +450,7 @@ def register_dialog_endpoints(app):
         incorrect_words: list[str] = []
         messages: list[str] = []
         corrections: list[str] = []
+        tips: list[str] = []
 
         words_to_check = used_words if used_words else [state.target_words[0]]
 
@@ -456,9 +467,12 @@ def register_dialog_endpoints(app):
                 return jsonify({"error": str(exc)}), 502
 
             status = str(llm_response.get("status") or "").strip().lower()
+            tip = str(llm_response.get("tip") or "").strip()
             if status == "correct" and word in used_words:
                 correct_words.append(word)
                 state.word_status[word] = "correct"
+                if tip:
+                    tips.append(f"{word}: Tip: {tip}")
             else:
                 if word in used_words:
                     incorrect_words.append(word)
@@ -469,6 +483,8 @@ def register_dialog_endpoints(app):
                     messages.append(f"{word}: {message}")
                 if correction:
                     corrections.append(f"{word}: {correction}")
+                if tip:
+                    tips.append(f"{word}: Tip: {tip}")
 
         if not used_words:
             missing_list = ", ".join(missing_words)
@@ -479,6 +495,7 @@ def register_dialog_endpoints(app):
                 state.word_status[word] = "unused"
 
         is_complete = state.correct_count == state.total_words
+        feedback_lines = messages + tips
 
         return jsonify(
             {
@@ -486,7 +503,7 @@ def register_dialog_endpoints(app):
                 "correct_words": correct_words,
                 "incorrect_words": incorrect_words,
                 "missing_words": missing_words,
-                "message": "\n".join(messages) if messages else "Great! The words you used are correct.",
+                "message": "\n".join(feedback_lines) if feedback_lines else "Great! The words you used are correct.",
                 "correction": "\n".join(corrections),
                 "practice_state": state.to_dict(),
                 "is_complete": is_complete,
