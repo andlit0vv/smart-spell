@@ -21,6 +21,7 @@ Input:
 - target_words: {target_words}
 - allow_word_forms: {allow_word_forms}
 - story_prompt: {story_prompt}
+- level: {english_level}
 
 Task:
 Generate a natural English text that includes ALL target words.
@@ -51,6 +52,7 @@ Rules:
    - sound natural
    - be coherent
    - be understandable for an English learner
+   - match the learner level in `level`
    - avoid unnecessary complexity
 
 6. Do NOT list the words separately.
@@ -238,11 +240,13 @@ def register_reading_endpoints(app):
 
         allow_word_forms = bool(data.get("allow_word_forms", False))
         story_prompt = str(data.get("story_prompt") or "").strip()
+        english_level = str(data.get("level") or "B1").strip() or "B1"
 
         prompt = READING_PROMPT_TEMPLATE.format(
             target_words=", ".join(target_words),
             allow_word_forms=str(allow_word_forms).lower(),
             story_prompt=story_prompt if story_prompt else "not provided",
+            english_level=english_level,
         )
 
         text = ""
@@ -275,5 +279,6 @@ def register_reading_endpoints(app):
                 "min_words": MIN_TOTAL_WORDS,
                 "max_words": MAX_TOTAL_WORDS,
                 "story_prompt": story_prompt,
+                "level": english_level,
             }
         )
