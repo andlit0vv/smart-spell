@@ -1,6 +1,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 from urllib import error, request
@@ -10,6 +11,7 @@ from flask import jsonify, request as flask_request
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-5.2"
 DEFAULT_WORDS_PER_TERM = 30
+MAX_GENERATION_ATTEMPTS = 3
 
 READING_PROMPT_TEMPLATE = """You are an assistant that generates short learning texts for English learners.
 
@@ -103,6 +105,34 @@ Return JSON only:
 
 class ReadingLLMError(Exception):
     pass
+
+
+def _count_words(text: str) -> int:
+    return len(re.findall(r"\b[\w']+\b", text))
+
+
+def _contains_target_word(text: str, target_word: str) -> bool:
+    pattern = re.compile(rf"\b{re.escape(target_word.lower())}\b")
+    return bool(pattern.search(text.lower()))
+
+
+def _validate_generated_text(
+    text: str,
+    target_words: list[str],
+    words_per_term: int,
+    allow_word_forms: bool,
+) -> None:
+    required_word_count = len(target_words) * words_per_term
+    actual_word_count = _count_words(text)
+    if actual_word_count != required_word_count:
+        raise ReadingLLMError(
+            f"Generated text has {actual_word_count} words, expected {required_word_count}"
+        )
+
+    if not allow_word_forms:
+        missing = [word for word in target_words if not _contains_target_word(text, word)]
+        if missing:
+            raise ReadingLLMError(f"Generated text is missing target words: {', '.join(missing)}")
 
 
 def _load_local_env() -> None:
@@ -226,13 +256,26 @@ def register_reading_endpoints(app):
             story_prompt=story_prompt if story_prompt else "not provided",
         )
 
-        try:
-            llm_response = _call_llm(prompt)
-            text = str(llm_response.get("text") or "").strip()
-            if not text:
-                raise ReadingLLMError("LLM returned empty text")
-        except ReadingLLMError as exc:
-            print(f"[Reading] /generate fallback due to LLM error: {exc}", flush=True)
+        text = ""
+        generation_error: ReadingLLMError | None = None
+        for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
+            try:
+                llm_response = _call_llm(prompt)
+                text = str(llm_response.get("text") or "").strip()
+                if not text:
+                    raise ReadingLLMError("LLM returned empty text")
+                _validate_generated_text(text, target_words, words_per_term, allow_word_forms)
+                generation_error = None
+                break
+            except ReadingLLMError as exc:
+                generation_error = exc
+                print(
+                    f"[Reading] Invalid generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}: {exc}",
+                    flush=True,
+                )
+
+        if generation_error:
+            print(f"[Reading] /generate fallback due to LLM error: {generation_error}", flush=True)
             text = _fallback_text(target_words, words_per_term)
 
         return jsonify(
