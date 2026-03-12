@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Languages, BarChart3, FileText } from "lucide-react";
+import { ArrowRight, Languages, BarChart3, FileText, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
 
@@ -213,7 +213,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
           className="flex items-center gap-2 rounded-2xl bg-primary btn-primary-glow px-5 py-3 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
         >
           <span className="hidden sm:inline">{isSubmitting ? "Sending..." : "Enter a Word"}</span>
-          <ArrowRight size={18} />
+          {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <ArrowRight size={18} />}
         </motion.button>
       </div>
 

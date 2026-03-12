@@ -286,10 +286,13 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
                 className="mt-4 w-full rounded-xl bg-primary btn-primary-glow px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
               >
                 {loading ? (
-                  "Generating..."
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw size={18} className="animate-spin" />
+                    Generating...
+                  </span>
                 ) : text ? (
                   <span className="inline-flex items-center gap-2">
-                    <RefreshCw size={14} />
+                    <RefreshCw size={16} />
                     Re-generate Text
                   </span>
                 ) : (
