@@ -247,14 +247,15 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-background"
+          className="fixed inset-0 z-[60] flex items-center justify-center px-5"
         >
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
           <motion.div
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
-            className="relative mx-auto flex h-full max-w-lg flex-col px-5 pt-6"
+            className="relative z-10 mx-auto flex h-[min(92vh,860px)] w-full max-w-lg flex-col rounded-2xl glass-modal-strong px-5 pt-6"
           >
             <h1 className="text-xl font-bold tracking-tight text-foreground">Generated Learning Text</h1>
 
@@ -299,7 +300,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               </button>
             </div>
 
-            <div className="mt-5 flex-1 overflow-y-auto pb-40">
+            <div className="mt-5 flex-1 overflow-y-auto pb-28">
               {error && <p className="text-sm text-red-500">{error}</p>}
               {!error && !text && !loading && (
                 <p className="text-sm text-muted-foreground">Select options and generate a reading text.</p>
@@ -311,7 +312,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               )}
             </div>
 
-            <div className="pb-8 pt-4">
+            <div className="pb-6 pt-4">
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={onClose}
