@@ -15,15 +15,10 @@ DEFAULT_MODEL = "gpt-4.1-mini"
 
 
 MAX_QUESTION_LENGTH = 160
-MAX_SITUATION_LENGTH = 160
 
 
 def _limit_question_length(question: str) -> str:
     return question.strip()[:MAX_QUESTION_LENGTH]
-
-
-def _limit_situation_length(situation: str) -> str:
-    return situation.strip()[:MAX_SITUATION_LENGTH]
 
 GENERATE_PROMPT = """You are an English learning exercise generator.
 
@@ -57,14 +52,13 @@ INSTRUCTIONS
 10. The question must encourage explanation, description, or justification.
 11. Language must match LEVEL.
 12. The situation should be 1–2 sentences.
-13. The situation must be no longer than 160 characters (including spaces and punctuation).
-14. The question should be 1 sentence.
-15. The question must be no longer than 160 characters (including spaces and punctuation).
-16. If the situation does not naturally allow multiple TARGET_WORDS (or at least FOCUS_WORD) to be used in the answer, regenerate the situation.
-17. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
-18. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
-19. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
-20. Prefer situations where very different words (abstract + concrete, technical + everyday) can still be used naturally in one response.
+13. The question should be 1 sentence.
+14. The question must be no longer than 160 characters (including spaces and punctuation).
+15. If the situation does not naturally allow multiple TARGET_WORDS (or at least FOCUS_WORD) to be used in the answer, regenerate the situation.
+16. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
+17. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
+18. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
+19. Prefer situations where very different words (abstract + concrete, technical + everyday) can still be used naturally in one response.
 
 OUTPUT FORMAT (JSON)
 
@@ -397,13 +391,12 @@ def register_dialog_endpoints(app):
                     previous_situations=" | ".join(state.situation_history[-5:]) or "none",
                 )
                 ,
-                temperature=0.9,
             )
         except DialogLLMError as exc:
             print(f"[Dialog] /generate fallback due to LLM error: {exc}", flush=True)
             llm_response = _fallback_generate_response(focus_word, english_level)
 
-        situation = _limit_situation_length(str(llm_response.get("situation") or ""))
+        situation = str(llm_response.get("situation") or "").strip()
         question = _limit_question_length(str(llm_response.get("question") or ""))
         if situation:
             state.situation_history.append(situation)
