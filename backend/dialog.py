@@ -99,8 +99,6 @@ INSTRUCTIONS
 - Do NOT explain grammar rules in detail.
 - Do NOT mark an answer as incorrect only because it is short.
 - Short answers are acceptable when they are grammatically correct and use TARGET_WORD naturally.
-- Do NOT mark an answer as incorrect only for style/register preferences (e.g., technical wording or informal fillers) if meaning is clear and usage is correct.
-- If TARGET_WORD (or its correct derivational form) is used correctly and the sentence is understandable, prefer status="correct".
 - The learner level is LEVEL, but still detect genuine errors normally.
 - The TARGET_WORD should be represented in the answer in a correct and natural way.
 - Different grammatical/derivational forms of TARGET_WORD are acceptable (e.g., containerization/containerize), if the same lexical root is used appropriately.
