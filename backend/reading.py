@@ -8,8 +8,7 @@ from flask import jsonify, request as flask_request
 
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-4.1-mini"
-DEFAULT_WORDS_PER_TERM = 25
-MIN_TOTAL_WORDS = 80
+DEFAULT_WORDS_PER_TERM = 15
 
 READING_PROMPT_TEMPLATE = """You are an assistant that generates short learning texts for English learners.
 
@@ -17,42 +16,35 @@ Input:
 - target_words: {target_words}
 - allow_word_forms: {allow_word_forms}
 - words_per_term: {words_per_term}
-- min_total_words: {min_total_words}
-- required_total_words: {required_total_words}
 
 Task:
-Generate a short story in natural English that includes ALL target words.
+Generate a natural English text that includes ALL target words.
 
 Rules:
 
-1. The target text length is:
-   len(target_words) × words_per_term
+1. The total length of the text must be:
+   total_words = len(target_words) × words_per_term
 
-2. Minimum total length is min_total_words words.
+2. Every target word MUST appear at least once in the text.
 
-3. Use required_total_words as the effective target length, where:
-   required_total_words = max(len(target_words) × words_per_term, min_total_words)
-
-4. Every target word MUST appear at least once in the story.
-
-5. If allow_word_forms = true:
+3. If allow_word_forms = true:
    - you may use different grammatical forms of the words
    (plural, verb tenses, derived forms, etc.)
 
-6. If allow_word_forms = false:
+4. If allow_word_forms = false:
    - use the exact target words as written
    - do not change their grammatical form
 
-7. The story must:
+5. The text must:
    - sound natural
    - be coherent
    - be understandable for an English learner
    - avoid unnecessary complexity
 
-8. Do NOT list the words separately.
+6. Do NOT list the words separately.
    They must appear naturally inside the text.
 
-9. Keep the word count as close as possible to required_total_words.
+7. Keep the word count as close as possible to the required total.
 
 Output format:
 Return JSON only:
@@ -148,8 +140,8 @@ def _normalize_target_words(target_words: Any) -> list[str]:
     return unique_words
 
 
-def _fallback_text(target_words: list[str], required_total_words: int) -> str:
-    target_count = max(required_total_words, len(target_words), MIN_TOTAL_WORDS)
+def _fallback_text(target_words: list[str], words_per_term: int) -> str:
+    target_count = max(len(target_words) * words_per_term, len(target_words))
     seed = " ".join(target_words)
     text = (
         f"In today\'s lesson, we practice {seed} in a short story. "
@@ -178,14 +170,10 @@ def register_reading_endpoints(app):
         if not isinstance(words_per_term, int) or words_per_term <= 0:
             words_per_term = DEFAULT_WORDS_PER_TERM
 
-        required_total_words = max(len(target_words) * words_per_term, MIN_TOTAL_WORDS)
-
         prompt = READING_PROMPT_TEMPLATE.format(
             target_words=", ".join(target_words),
             allow_word_forms=str(allow_word_forms).lower(),
             words_per_term=words_per_term,
-            min_total_words=MIN_TOTAL_WORDS,
-            required_total_words=required_total_words,
         )
 
         try:
@@ -195,7 +183,7 @@ def register_reading_endpoints(app):
                 raise ReadingLLMError("LLM returned empty text")
         except ReadingLLMError as exc:
             print(f"[Reading] /generate fallback due to LLM error: {exc}", flush=True)
-            text = _fallback_text(target_words, required_total_words)
+            text = _fallback_text(target_words, words_per_term)
 
         return jsonify(
             {
@@ -203,7 +191,5 @@ def register_reading_endpoints(app):
                 "target_words": target_words,
                 "allow_word_forms": allow_word_forms,
                 "words_per_term": words_per_term,
-                "required_total_words": required_total_words,
-                "min_total_words": MIN_TOTAL_WORDS,
             }
         )

@@ -109,7 +109,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
         body: JSON.stringify({
           target_words: selectedWords,
           allow_word_forms: allowWordForms,
-          words_per_term: 25,
+          words_per_term: 15,
         }),
       });
 
@@ -164,7 +164,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
             <div className="mt-5 flex-1 overflow-y-auto pb-6">
               {error && <p className="text-sm text-red-500">{error}</p>}
               {!error && !text && !loading && (
-                <p className="text-sm text-muted-foreground">Select options and generate a short story.</p>
+                <p className="text-sm text-muted-foreground">Select options and generate a reading text.</p>
               )}
               {text && <ReadingText text={text} stems={targetStems} words={targetWordsSet} />}
             </div>
