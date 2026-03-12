@@ -320,13 +320,13 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
             className="fixed inset-0 z-[60] flex items-center justify-center px-5"
             onClick={() => setLearningMode(null)}
           >
-            <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
             <motion.div
               initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.92, opacity: 0 }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className="relative z-10 w-full max-w-sm rounded-2xl glass-modal p-6"
+              className="relative z-10 w-full max-w-sm rounded-2xl glass-modal-strong p-6"
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-lg font-bold text-foreground text-center">Choose Learning Method</h2>
