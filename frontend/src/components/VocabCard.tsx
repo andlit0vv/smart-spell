@@ -18,9 +18,9 @@ interface VocabCardProps {
 }
 
 const GROUP_STYLES: Record<WordCategory["group"], string> = {
-  domain: "bg-violet-500/15 text-violet-200 border-violet-400/70",
-  topic: "bg-sky-500/15 text-sky-200 border-sky-400/70",
-  context: "bg-emerald-500/15 text-emerald-200 border-emerald-400/70",
+  domain: "bg-violet-500/15 text-violet-800 border-violet-400/70 dark:text-violet-200",
+  topic: "bg-sky-500/15 text-sky-800 border-sky-400/70 dark:text-sky-200",
+  context: "bg-emerald-500/15 text-emerald-800 border-emerald-400/70 dark:text-emerald-200",
 };
 
 const VocabCard = ({

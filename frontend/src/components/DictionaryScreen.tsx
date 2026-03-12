@@ -16,7 +16,7 @@ interface WordData {
 interface WordCategory {
   id: string;
   name: string;
-  group: "domain" | "topic" | "context";
+  group: "topic";
 }
 
 interface DictionaryScreenProps {
@@ -38,13 +38,7 @@ const initialWords: WordData[] = [
 const createCategoryId = (name: string, group: WordCategory["group"]) =>
   `${group}:${name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
 
-const groupFromDomain = (domain: string): WordCategory["group"] => {
-  const lower = domain.toLowerCase();
-  if (lower.includes("it") || lower.includes("medicine") || lower.includes("finance") || lower.includes("legal")) {
-    return "domain";
-  }
-  return "topic";
-};
+const groupFromDomain = (_domain: string): WordCategory["group"] => "topic";
 
 const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [words, setWords] = useState<WordData[]>(initialWords);
@@ -56,10 +50,9 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [wordCategoryIds, setWordCategoryIds] = useState<Record<string, string[]>>({});
   const [activeWord, setActiveWord] = useState<string | null>(null);
 
-  const [filterGroup, setFilterGroup] = useState<"all" | WordCategory["group"]>("all");
+  const [filterGroup, setFilterGroup] = useState<"all" | "topic">("all");
   const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryGroup, setNewCategoryGroup] = useState<WordCategory["group"]>("topic");
 
   useEffect(() => {
     const loadDictionary = async () => {
@@ -162,10 +155,10 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const createCategory = () => {
     const trimmed = newCategoryName.trim();
     if (!trimmed) return;
-    const id = createCategoryId(trimmed, newCategoryGroup);
+    const id = createCategoryId(trimmed, "topic");
     setCategoriesById((prev) => {
       if (prev[id]) return prev;
-      return { ...prev, [id]: { id, name: trimmed, group: newCategoryGroup } };
+      return { ...prev, [id]: { id, name: trimmed, group: "topic" } };
     });
     setNewCategoryName("");
   };
@@ -190,7 +183,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">My Dictionary</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Mobile-first categories by taxonomy: domain, topic, context.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Mobile-first categories by topics.</p>
           </div>
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
         </div>
@@ -205,15 +198,15 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
             )}
           </div>
 
-          <div className="mt-3 grid grid-cols-4 gap-1.5 rounded-xl bg-background/40 p-1">
-            {(["all", "domain", "topic", "context"] as const).map((group) => (
+          <div className="mt-3 grid grid-cols-2 gap-1.5 rounded-xl bg-background/40 p-1">
+            {(["all", "topic"] as const).map((group) => (
               <button
                 key={group}
                 type="button"
                 onClick={() => setFilterGroup(group)}
                 className={`rounded-lg px-2 py-1.5 text-[11px] font-semibold capitalize ${filterGroup === group ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
               >
-                {group}
+                {group === "topic" ? "topics" : group}
               </button>
             ))}
           </div>
@@ -253,19 +246,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
             </button>
           </div>
 
-          <div className="mt-2 flex gap-2">
-            {(["domain", "topic", "context"] as const).map((group) => (
-              <button
-                key={group}
-                type="button"
-                onClick={() => setNewCategoryGroup(group)}
-                className={`rounded-full px-3 py-1 text-[11px] font-semibold capitalize ${newCategoryGroup === group ? "bg-primary/20 text-primary" : "bg-background/40 text-muted-foreground"}`}
-              >
-                {group}
-              </button>
-            ))}
-          </div>
-
           <p className="mt-2 text-xs text-muted-foreground">Showing {filteredWords.length} of {words.length} words</p>
         </div>
 
@@ -296,13 +276,13 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
       <AnimatePresence>
         {activeWord && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70]" onClick={() => setActiveWord(null)}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] flex items-center justify-center p-5" onClick={() => setActiveWord(null)}>
             <div className="absolute inset-0 bg-black/65" />
             <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 20, opacity: 0 }}
-              className="absolute bottom-0 left-0 right-0 max-h-[78vh] overflow-y-auto rounded-t-3xl glass-modal-strong p-5"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative z-10 w-full max-w-sm max-h-[80vh] overflow-y-auto rounded-3xl glass-modal-strong p-5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-3 flex items-center justify-between">
@@ -324,7 +304,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
                       }`}
                     >
                       <p className="font-semibold">{category.name}</p>
-                      <p className="text-[11px] uppercase tracking-wide">{category.group}</p>
+                      <p className="text-[11px] uppercase tracking-wide">topics</p>
                     </button>
                   );
                 })}
