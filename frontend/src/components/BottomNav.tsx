@@ -18,27 +18,29 @@ interface BottomNavProps {
 const BottomNav = ({ active, onTabChange }: BottomNavProps) => {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass-nav safe-bottom">
-      <div className="mx-auto flex max-w-lg items-center justify-around py-2">
+      <div className="mx-auto flex max-w-lg items-center py-2">
         {tabs.map((tab) => {
           const isActive = active === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className="relative flex flex-col items-center gap-0.5 px-4 py-1.5 transition-colors"
+              className="relative flex flex-1 flex-col items-center gap-0.5 py-1.5 transition-colors"
             >
-              {isActive && (
-                <motion.div
-                  layoutId="navIndicator"
-                  className="absolute -top-2 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              <div className="relative flex h-6 w-6 items-center justify-center">
+                {isActive && (
+                  <motion.div
+                    layoutId="navIndicator"
+                    className="absolute -top-2 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <tab.icon
+                  size={22}
+                  strokeWidth={isActive ? 2.2 : 1.8}
+                  className={`transition-colors ${isActive ? "text-nav-active" : "text-nav-inactive"}`}
                 />
-              )}
-              <tab.icon
-                size={22}
-                strokeWidth={isActive ? 2.2 : 1.8}
-                className={`transition-colors ${isActive ? "text-nav-active" : "text-nav-inactive"}`}
-              />
+              </div>
               <span
                 className={`text-[11px] transition-colors ${
                   isActive ? "font-semibold text-nav-active" : "font-medium text-nav-inactive"

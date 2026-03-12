@@ -72,10 +72,10 @@ const EnglishLevelModal = ({ onComplete }: EnglishLevelModalProps) => {
                   <button
                     type="button"
                     onClick={() => toggleLevel(level)}
-                    className={`h-24 w-full rounded-xl border text-lg font-bold transition-colors btn-secondary-glass ${
+                    className={`h-24 w-full rounded-xl border text-lg font-bold transition-colors ${
                       isActive
                         ? "border-orange-500 bg-orange-500 text-white"
-                        : "border-border bg-muted/60 text-foreground"
+                        : "btn-secondary-glass border-border bg-muted/60 text-foreground"
                     }`}
                   >
                     {level}

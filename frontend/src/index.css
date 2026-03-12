@@ -6,8 +6,8 @@
 
 @layer base {
   :root {
-    --background: 228 14% 97%;
-    --foreground: 0 0% 100%;
+    --background: 38 70% 97%;
+    --foreground: 220 24% 12%;
 
     --card: 0 0% 100% / 0.65;
     --card-solid: 0 0% 100%;
@@ -23,7 +23,7 @@
     --secondary-foreground: 30 50% 20%;
 
     --muted: 220 14% 95%;
-    --muted-foreground: 222 15% 72%;
+    --muted-foreground: 222 10% 42%;
 
     --accent: 37 91% 94%;
     --accent-foreground: 37 80% 35%;
@@ -31,7 +31,7 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 14% 90% / 0.6;
+    --border: 220 14% 82% / 0.65;
     --input: 220 14% 88%;
     --ring: 37 91% 55%;
 
@@ -48,15 +48,15 @@
     --domain-general-foreground: 160 50% 30%;
 
     --nav-active: 37 91% 55%;
-    --nav-inactive: 220 10% 62%;
+    --nav-inactive: 220 9% 44%;
 
-    --glass-bg: 0 0% 100% / 0.04;
-    --glass-strong-bg: 0 0% 100% / 0.07;
-    --glass-border: 0 0% 100% / 0.08;
+    --glass-bg: 0 0% 100% / 0.72;
+    --glass-strong-bg: 0 0% 100% / 0.88;
+    --glass-border: 220 16% 60% / 0.3;
     --glass-blur: 16px;
-    --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --glass-shadow: 0 8px 28px rgba(214, 147, 74, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 
-    --nav-glass: 220 29% 5% / 0.6;
+    --nav-glass: 0 0% 100% / 0.78;
   }
 
   .dark {
@@ -110,6 +110,7 @@
 
     --nav-glass: 220 29% 5% / 0.6;
   }
+
 }
 
 @layer base {
@@ -179,6 +180,13 @@
 
   .app-gradient-bg {
     background:
+      radial-gradient(780px circle at 18% 0%, rgba(255, 143, 28, 0.26), transparent 42%),
+      radial-gradient(640px circle at 88% 84%, rgba(255, 145, 22, 0.2), transparent 48%),
+      linear-gradient(180deg, #fffaf2 0%, #fff4e5 100%);
+  }
+
+  .dark .app-gradient-bg {
+    background:
       radial-gradient(800px circle at 20% 0%, rgba(255, 120, 0, 0.35), transparent 40%),
       radial-gradient(700px circle at 90% 80%, rgba(255, 120, 0, 0.25), transparent 45%),
       linear-gradient(180deg, #0b0f16 0%, #070a10 100%);
@@ -191,11 +199,18 @@
   }
 
   .btn-secondary-glass {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: hsla(0, 0%, 100%, 0.6);
+    border: 1px solid hsla(220, 15%, 65%, 0.32);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(214, 147, 74, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+
+
+  .dark .btn-secondary-glass {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
