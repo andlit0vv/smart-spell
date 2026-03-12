@@ -2,7 +2,7 @@ import json
 import os
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib import error, request
@@ -21,6 +21,7 @@ INPUT VARIABLES
 USER_DESCRIPTION: {user_description}
 TARGET_WORD: {target_word}
 LEVEL: {english_level}
+PREVIOUS_SITUATIONS: {previous_situations}
 
 TASK
 Generate:
@@ -43,6 +44,9 @@ INSTRUCTIONS
 10. The situation should be 1–2 sentences.
 11. The question should be 1 sentence.
 12. If the situation does not naturally allow the TARGET_WORD to be used in the answer, regenerate the situation.
+13. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
+14. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
+15. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
 
 OUTPUT FORMAT (JSON)
 
@@ -57,12 +61,14 @@ INPUT VARIABLES
 SITUATION: {situation}
 TARGET_WORDS: {target_words}
 LEVEL: {english_level}
+PREVIOUS_QUESTION: {previous_question}
 
 TASK
 Generate one question (1 sentence) that logically follows the situation and encourages explanation.
 The learner should be able to naturally use one or more target words in the answer.
 Do not include any target word directly inside the question.
 Use language suitable for LEVEL.
+If PREVIOUS_QUESTION is provided, create a new question with a different angle and wording while staying in the same situation.
 
 OUTPUT FORMAT (JSON)
 {{
@@ -131,6 +137,7 @@ class DialogLLMError(Exception):
 class DialogState:
     target_words: list[str]
     word_status: dict[str, str]
+    situation_history: list[str] = field(default_factory=list)
 
     @property
     def correct_count(self) -> int:
@@ -167,7 +174,7 @@ def _load_local_env() -> None:
             os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-def _call_llm(prompt: str) -> dict[str, Any]:
+def _call_llm(prompt: str, *, temperature: float = 0.2) -> dict[str, Any]:
     _load_local_env()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -183,7 +190,7 @@ def _call_llm(prompt: str) -> dict[str, Any]:
         data=json.dumps(
             {
                 "model": os.getenv("OPENAI_MODEL", DEFAULT_MODEL),
-                "temperature": 0.2,
+                "temperature": temperature,
                 "messages": [{"role": "user", "content": prompt}],
                 "response_format": {"type": "json_object"},
             }
@@ -362,17 +369,25 @@ def register_dialog_endpoints(app):
                     user_description=(data.get("user_description") or "").strip() or "English learner",
                     target_word=focus_word,
                     english_level=english_level,
+                    previous_situations=" | ".join(state.situation_history[-5:]) or "none",
                 )
+                ,
+                temperature=0.9,
             )
         except DialogLLMError as exc:
             print(f"[Dialog] /generate fallback due to LLM error: {exc}", flush=True)
             llm_response = _fallback_generate_response(focus_word, english_level)
 
+        situation = str(llm_response.get("situation") or "").strip()
+        question = str(llm_response.get("question") or "").strip()
+        if situation:
+            state.situation_history.append(situation)
+
         return jsonify(
             {
                 "practice_id": practice_id,
-                "situation": str(llm_response.get("situation") or "").strip(),
-                "question": str(llm_response.get("question") or "").strip(),
+                "situation": situation,
+                "question": question,
                 "practice_state": state.to_dict(),
             }
         )
@@ -388,13 +403,17 @@ def register_dialog_endpoints(app):
             return jsonify({"error": "target_words must be a non-empty array"}), 400
 
         english_level = (data.get("level") or "B1").strip()
+        previous_question = (data.get("previous_question") or "").strip()
         try:
             llm_response = _call_llm(
                 QUESTION_PROMPT.format(
                     situation=situation,
                     target_words=", ".join(target_words),
                     english_level=english_level,
+                    previous_question=previous_question or "none",
                 )
+                ,
+                temperature=0.6,
             )
         except DialogLLMError as exc:
             print(f"[Dialog] /question fallback due to LLM error: {exc}", flush=True)
