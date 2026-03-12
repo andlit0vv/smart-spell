@@ -1,18 +1,131 @@
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, BookmarkPlus } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 interface Props {
   open: boolean;
+  selectedWords: string[];
   onClose: () => void;
 }
 
-const learningText = [
-  "In modern software infrastructure, asynchronous communication plays a critical role in ensuring scalable systems. Through containerization, developers can isolate services and simplify deployment across distributed environments.",
-  "A well-defined protocol ensures that services interact reliably, while robust infrastructure guarantees stability under heavy loads. During deployment, teams must carefully manage dependencies and monitor system performance.",
-  "Although terms like myocardial are more common in medical contexts, the precision required in medicine is not unlike the precision required in engineering distributed systems.",
-];
+const normalizeStem = (word: string) => {
+  let stem = word.toLowerCase().trim();
+  const suffixes = [
+    "ization",
+    "isation",
+    "ational",
+    "ation",
+    "ition",
+    "ment",
+    "ness",
+    "ingly",
+    "edly",
+    "izing",
+    "ising",
+    "ized",
+    "ised",
+    "ing",
+    "ed",
+    "ize",
+    "ise",
+    "izer",
+    "iser",
+    "ly",
+    "ity",
+    "ty",
+    "al",
+    "ic",
+    "er",
+    "or",
+    "s",
+  ];
 
-const LearningTextModal = ({ open, onClose }: Props) => {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const suffix of suffixes) {
+      if (stem.length - suffix.length < 4) continue;
+      if (stem.endsWith(suffix)) {
+        stem = stem.slice(0, -suffix.length);
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  return stem;
+};
+
+const ReadingText = ({ text, stems, words }: { text: string; stems: Set<string>; words: Set<string> }) => {
+  const parts = text.split(/(\s+)/);
+
+  return (
+    <p className="text-[15px] leading-relaxed text-foreground/85">
+      {parts.map((part, index) => {
+        if (/^\s+$/.test(part)) return <span key={`${part}-${index}`}>{part}</span>;
+
+        const clean = part.replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "");
+        const lower = clean.toLowerCase();
+        const stem = normalizeStem(lower);
+        const isTargetWord = words.has(lower) || (stem.length >= 4 && stems.has(stem));
+
+        if (!isTargetWord) return <span key={`${part}-${index}`}>{part}</span>;
+
+        return (
+          <strong key={`${part}-${index}`} className="font-bold text-black dark:text-white">
+            {part}
+          </strong>
+        );
+      })}
+    </p>
+  );
+};
+
+const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
+  const [allowWordForms, setAllowWordForms] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+
+  const targetWordsSet = useMemo(
+    () => new Set(selectedWords.map((word) => word.toLowerCase())),
+    [selectedWords],
+  );
+  const targetStems = useMemo(
+    () => new Set(selectedWords.map((word) => normalizeStem(word)).filter((stem) => stem.length >= 4)),
+    [selectedWords],
+  );
+
+  const generateText = async () => {
+    if (!selectedWords.length) return;
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/reading/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_words: selectedWords,
+          allow_word_forms: allowWordForms,
+          words_per_term: 25,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to generate reading text");
+
+      setText(payload.text || "");
+    } catch (err) {
+      console.error("[Reading] Failed to generate text", err);
+      setError("Could not generate text. Please try again.");
+      setText("");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -29,16 +142,31 @@ const LearningTextModal = ({ open, onClose }: Props) => {
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
             className="mx-auto flex h-full max-w-lg flex-col px-5 pt-6"
           >
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Generated Learning Text
-            </h1>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Generated Learning Text</h1>
 
-            <div className="mt-5 flex-1 space-y-4 overflow-y-auto pb-6">
-              {learningText.map((para, i) => (
-                <p key={i} className="text-[15px] leading-relaxed text-foreground/85">
-                  {para}
-                </p>
-              ))}
+            <div className="mt-4 rounded-2xl glass p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-foreground">Allow different word forms</p>
+                <Switch checked={allowWordForms} onCheckedChange={setAllowWordForms} />
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                If enabled, the text may use grammatical variations of selected words.
+              </p>
+              <button
+                onClick={generateText}
+                disabled={loading || selectedWords.length === 0}
+                className="mt-4 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {loading ? "Generating..." : "Generate Text"}
+              </button>
+            </div>
+
+            <div className="mt-5 flex-1 overflow-y-auto pb-6">
+              {error && <p className="text-sm text-red-500">{error}</p>}
+              {!error && !text && !loading && (
+                <p className="text-sm text-muted-foreground">Select options and generate a short story.</p>
+              )}
+              {text && <ReadingText text={text} stems={targetStems} words={targetWordsSet} />}
             </div>
 
             <div className="flex gap-3 pb-8 pt-4">
