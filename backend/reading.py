@@ -1,3 +1,4 @@
+
 import json
 import os
 from pathlib import Path
@@ -7,8 +8,8 @@ from urllib import error, request
 from flask import jsonify, request as flask_request
 
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
-DEFAULT_MODEL = "gpt-4.1-mini"
-DEFAULT_WORDS_PER_TERM = 15
+DEFAULT_MODEL = "gpt-5.2"
+DEFAULT_WORDS_PER_TERM = 30
 
 READING_PROMPT_TEMPLATE = """You are an assistant that generates short learning texts for English learners.
 
@@ -20,6 +21,17 @@ Input:
 
 Task:
 Generate a natural English text that includes ALL target words.
+
+Instructions:
+Step 1. Compute the required number of words:
+required_words = len(target_words) × words_per_term
+
+Step 2. Plan a short text that will contain exactly required_words words.
+
+Step 3. Write the text.
+
+Step 4. Count the words in the generated text and ensure the count equals required_words.
+If it does not match, regenerate the text
 
 Rules:
 
@@ -45,9 +57,41 @@ Rules:
 6. Do NOT list the words separately.
    They must appear naturally inside the text.
 
-7. Keep the word count as close as possible to the required total.
+7. The text MUST contain exactly required_words words.
+Not more. Not less.
 
 8. If story_prompt is provided (non-empty), use it as the topic or setting for the text.
+
+Example 1:
+
+Input:
+target_words: deployment, correspond, satisfy, retrieve
+allow_word_forms: false
+
+Output:
+{{
+  "text": "The engineering team prepared a careful deployment late on Friday evening. Every step had to correspond exactly to the checklist created earlier in the week. Their goal was simple: satisfy the client and avoid unexpected problems.
+
+Before starting, one developer needed to retrieve several configuration files from the internal server. These files helped the system correspond correctly with external services after the deployment. Once everything was ready, the team ran the final commands and watched the update complete successfully.
+
+The result was stable and efficient. The logs helped retrieve useful performance data, and the solution continued to satisfy the needs of the users."
+}}
+
+
+Example 2:
+
+Input:
+target_words: deploy, correspond, satisfy, retrieve
+allow_word_forms: true
+
+Output:
+{{
+  "text": "A small software team planned to deploy a new feature for their analytics platform. The engineers checked that the system configuration corresponded with the documentation before starting the update. Their main goal was to satisfy the company’s growing number of users.
+
+During the process, the monitoring service retrieved several error reports from the server. One developer carefully reviewed the data and noticed that a few values did not correspond to the expected results. After fixing the issue, the team deployed the update successfully.
+
+The new version worked smoothly. The system could now retrieve information faster, and the improved performance helped satisfy the expectations of the product team."
+}}
 
 Output format:
 Return JSON only:
