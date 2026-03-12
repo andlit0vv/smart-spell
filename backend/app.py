@@ -124,6 +124,30 @@ def add_dictionary_word():
     })
 
 
+@app.delete('/api/dictionary')
+def delete_dictionary_word():
+    data = request.get_json(silent=True) or {}
+    word = (data.get('word') or '').strip()
+
+    if not word:
+        return jsonify({'error': 'word is required'}), 400
+
+    initial_count = len(CURRENT_DICTIONARY)
+    CURRENT_DICTIONARY[:] = [
+        item for item in CURRENT_DICTIONARY if item['word'].lower() != word.lower()
+    ]
+
+    if len(CURRENT_DICTIONARY) == initial_count:
+        return jsonify({'error': 'Word not found'}), 404
+
+    print(f"[Dictionary] Deleted word: {word}", flush=True)
+
+    return jsonify({
+        'message': 'Word deleted',
+        'words': CURRENT_DICTIONARY,
+    })
+
+
 @app.get('/health')
 def health_check():
     # Basic endpoint to quickly verify that backend is alive.
