@@ -16,6 +16,7 @@ Input:
 - target_words: {target_words}
 - allow_word_forms: {allow_word_forms}
 - words_per_term: {words_per_term}
+- story_prompt: {story_prompt}
 
 Task:
 Generate a natural English text that includes ALL target words.
@@ -45,6 +46,8 @@ Rules:
    They must appear naturally inside the text.
 
 7. Keep the word count as close as possible to the required total.
+
+8. If story_prompt is provided (non-empty), use it as the topic or setting for the text.
 
 Output format:
 Return JSON only:
@@ -166,6 +169,8 @@ def register_reading_endpoints(app):
             return jsonify({"error": "target_words must be a non-empty array"}), 400
 
         allow_word_forms = bool(data.get("allow_word_forms", False))
+        story_prompt = str(data.get("story_prompt") or "").strip()
+
         words_per_term = data.get("words_per_term", DEFAULT_WORDS_PER_TERM)
         if not isinstance(words_per_term, int) or words_per_term <= 0:
             words_per_term = DEFAULT_WORDS_PER_TERM
@@ -174,6 +179,7 @@ def register_reading_endpoints(app):
             target_words=", ".join(target_words),
             allow_word_forms=str(allow_word_forms).lower(),
             words_per_term=words_per_term,
+            story_prompt=story_prompt if story_prompt else "not provided",
         )
 
         try:
@@ -191,5 +197,6 @@ def register_reading_endpoints(app):
                 "target_words": target_words,
                 "allow_word_forms": allow_word_forms,
                 "words_per_term": words_per_term,
+                "story_prompt": story_prompt,
             }
         )

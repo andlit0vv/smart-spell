@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, BookmarkPlus } from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface Props {
@@ -87,6 +87,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
+  const [storyPrompt, setStoryPrompt] = useState("");
 
   const targetWordsSet = useMemo(
     () => new Set(selectedWords.map((word) => word.toLowerCase())),
@@ -109,6 +110,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
         body: JSON.stringify({
           target_words: selectedWords,
           allow_word_forms: allowWordForms,
+          story_prompt: storyPrompt.trim() || undefined,
           words_per_term: 15,
         }),
       });
@@ -145,19 +147,43 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
             <h1 className="text-xl font-bold tracking-tight text-foreground">Generated Learning Text</h1>
 
             <div className="mt-4 rounded-2xl glass p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-foreground">Allow different word forms</p>
+              <p className="text-sm font-semibold text-foreground">Generate Text</p>
+              <label className="mt-3 block text-xs text-muted-foreground" htmlFor="story-prompt">
+                Optional story idea
+              </label>
+              <input
+                id="story-prompt"
+                value={storyPrompt}
+                onChange={(event) => setStoryPrompt(event.target.value)}
+                placeholder="e.g., A travel story in the mountains"
+                className="mt-1 w-full rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary"
+              />
+
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/40 px-3 py-2">
+                <div>
+                  <p className="text-xs font-medium text-foreground/85">Allow different word forms</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Example: <span className="text-foreground/70">write</span> → <span className="text-foreground/70">writing</span>
+                  </p>
+                </div>
                 <Switch checked={allowWordForms} onCheckedChange={setAllowWordForms} />
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                If enabled, the text may use grammatical variations of selected words.
-              </p>
+
               <button
                 onClick={generateText}
                 disabled={loading || selectedWords.length === 0}
                 className="mt-4 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
               >
-                {loading ? "Generating..." : "Generate Text"}
+                {loading ? (
+                  "Generating..."
+                ) : text ? (
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw size={14} />
+                    Re-generate Text
+                  </span>
+                ) : (
+                  "Generate Text"
+                )}
               </button>
             </div>
 
@@ -169,21 +195,14 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               {text && <ReadingText text={text} stems={targetStems} words={targetWordsSet} />}
             </div>
 
-            <div className="flex gap-3 pb-8 pt-4">
+            <div className="pb-8 pt-4">
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={onClose}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl glass py-3 text-sm font-semibold text-foreground transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl glass py-3 text-sm font-semibold text-foreground transition-colors"
               >
                 <ArrowLeft size={16} />
                 Back to Dictionary
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20"
-              >
-                <BookmarkPlus size={16} />
-                Save as Practice
               </motion.button>
             </div>
           </motion.div>
