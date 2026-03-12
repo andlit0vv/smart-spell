@@ -5,6 +5,7 @@ interface WordCategory {
   id: string;
   name: string;
   group: "domain" | "topic" | "context";
+  color?: string;
 }
 
 interface VocabCardProps {
@@ -21,6 +22,20 @@ const GROUP_STYLES: Record<WordCategory["group"], string> = {
   domain: "bg-violet-500/15 text-violet-800 border-violet-400/70 dark:text-violet-200",
   topic: "bg-sky-500/15 text-sky-800 border-sky-400/70 dark:text-sky-200",
   context: "bg-emerald-500/15 text-emerald-800 border-emerald-400/70 dark:text-emerald-200",
+};
+
+const hexToRgba = (hexColor: string, alpha: number) => {
+  const normalized = hexColor.replace("#", "");
+  const sanitized = normalized.length === 3
+    ? normalized.split("").map((symbol) => `${symbol}${symbol}`).join("")
+    : normalized;
+
+  const parsed = Number.parseInt(sanitized, 16);
+  const red = (parsed >> 16) & 255;
+  const green = (parsed >> 8) & 255;
+  const blue = parsed & 255;
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 };
 
 const VocabCard = ({
@@ -65,7 +80,12 @@ const VocabCard = ({
               categories.map((category) => (
                 <span
                   key={category.id}
-                  className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${GROUP_STYLES[category.group]}`}
+                  className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${category.color ? "" : GROUP_STYLES[category.group]}`}
+                  style={category.color ? {
+                    borderColor: hexToRgba(category.color, 0.75),
+                    backgroundColor: hexToRgba(category.color, 0.18),
+                    color: category.color,
+                  } : undefined}
                 >
                   {category.name}
                 </span>

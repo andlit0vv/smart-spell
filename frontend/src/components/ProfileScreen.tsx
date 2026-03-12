@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Save, Camera } from "lucide-react";
+import { Save } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
@@ -92,9 +92,6 @@ const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
                 {name ? name.charAt(0).toUpperCase() : "?"}
               </span>
             </div>
-            <button className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
-              <Camera size={14} />
-            </button>
           </div>
           <h2 className="mt-3 text-lg font-bold text-foreground">{name || "Your Name"}</h2>
         </div>
