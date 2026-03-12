@@ -97,8 +97,11 @@ INSTRUCTIONS
 - Always provide the corrected sentence if an error exists.
 - Feedback must be short and clear.
 - Do NOT explain grammar rules in detail.
-- The learner level is LEVEL, but still detect errors normally.
-- The TARGET_WORD must appear in the answer and be used correctly.
+- Do NOT mark an answer as incorrect only because it is short.
+- Short answers are acceptable when they are grammatically correct and use TARGET_WORD naturally.
+- The learner level is LEVEL, but still detect genuine errors normally.
+- The TARGET_WORD should be represented in the answer in a correct and natural way.
+- Different grammatical/derivational forms of TARGET_WORD are acceptable (e.g., containerization/containerize), if the same lexical root is used appropriately.
 
 OUTPUT FORMAT
 
@@ -263,7 +266,65 @@ def _word_present(answer: str, word: str) -> bool:
     else:
         pattern = r"\b" + re.escape(normalized_word) + r"\b"
 
-    return bool(re.search(pattern, normalized_answer, flags=re.IGNORECASE))
+    if re.search(pattern, normalized_answer, flags=re.IGNORECASE):
+        return True
+
+    if " " in normalized_word:
+        return False
+
+    answer_tokens = re.findall(r"[a-zA-Z]+", normalized_answer)
+    target_stem = _normalize_word_stem(normalized_word)
+    if len(target_stem) < 5:
+        return False
+
+    return any(_normalize_word_stem(token) == target_stem for token in answer_tokens)
+
+
+def _normalize_word_stem(word: str) -> str:
+    """Return a lightweight stem to match close lexical forms (e.g. containerization/containerize)."""
+    stem = word.lower().strip()
+    suffixes = (
+        "ization",
+        "isation",
+        "ational",
+        "ation",
+        "ition",
+        "ment",
+        "ness",
+        "ingly",
+        "edly",
+        "izing",
+        "ising",
+        "ized",
+        "ised",
+        "ing",
+        "ed",
+        "ize",
+        "ise",
+        "izer",
+        "iser",
+        "ly",
+        "ity",
+        "ty",
+        "al",
+        "ic",
+        "er",
+        "or",
+        "s",
+    )
+
+    changed = True
+    while changed:
+        changed = False
+        for suffix in suffixes:
+            if len(stem) - len(suffix) < 4:
+                continue
+            if stem.endswith(suffix):
+                stem = stem[: -len(suffix)]
+                changed = True
+                break
+
+    return stem
 
 
 def _fallback_generate_response(target_word: str, english_level: str) -> dict[str, str]:
