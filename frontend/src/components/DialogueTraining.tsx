@@ -222,9 +222,9 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
           onBlur={() => void regenerateQuestion()}
           readOnly={!isEditingSituation}
           rows={3}
-          maxLength={160}
           className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 read-only:opacity-80"
         />
+        <p className="mt-2 text-[11px] text-muted-foreground">Ask model for ≤120 chars situation and ≤100 chars question.</p>
       </div>
 
       <div className="mb-4 rounded-2xl glass p-5">

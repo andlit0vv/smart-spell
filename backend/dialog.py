@@ -14,16 +14,16 @@ OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-4.1-mini"
 
 
-MAX_QUESTION_LENGTH = 160
-MAX_SITUATION_LENGTH = 160
+MAX_QUESTION_LENGTH = 100
+MAX_SITUATION_LENGTH = 120
 
 
 def _limit_question_length(question: str) -> str:
-    return question.strip()[:MAX_QUESTION_LENGTH]
+    return question.strip()
 
 
 def _limit_situation_length(situation: str) -> str:
-    return situation.strip()[:MAX_SITUATION_LENGTH]
+    return situation.strip()
 
 GENERATE_PROMPT = """You are an English learning exercise generator.
 
@@ -58,12 +58,13 @@ INSTRUCTIONS
 11. Language must match LEVEL.
 12. The situation should be 1–2 sentences.
 13. The question should be 1 sentence.
-14. The question must be no longer than 160 characters (including spaces and punctuation).
-15. If the situation does not naturally allow multiple TARGET_WORDS (or at least FOCUS_WORD) to be used in the answer, regenerate the situation.
-16. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
-17. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
-18. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
-19. Prefer situations where very different words (abstract + concrete, technical + everyday) can still be used naturally in one response.
+14. The situation must be no longer than 120 characters (including spaces and punctuation).
+15. The question must be no longer than 100 characters (including spaces and punctuation).
+16. If the situation does not naturally allow multiple TARGET_WORDS (or at least FOCUS_WORD) to be used in the answer, regenerate the situation.
+17. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
+18. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
+19. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
+20. Prefer situations where very different words (abstract + concrete, technical + everyday) can still be used naturally in one response.
 
 OUTPUT FORMAT (JSON)
 
@@ -86,7 +87,7 @@ The learner should be able to naturally use one or more target words in the answ
 Do not include any target word directly inside the question.
 Use language suitable for LEVEL.
 If PREVIOUS_QUESTION is provided, create a new question with a different angle and wording while staying in the same situation.
-The question must be no longer than 160 characters (including spaces and punctuation).
+The question must be no longer than 100 characters (including spaces and punctuation).
 
 OUTPUT FORMAT (JSON)
 {{
