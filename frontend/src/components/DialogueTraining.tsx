@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, RotateCcw, Send, ArrowRight, RefreshCw, GraduationCap, Pencil } from "lucide-react";
+import { ArrowLeft, RotateCcw, Send, RefreshCw, GraduationCap, Pencil } from "lucide-react";
 
 interface WordInfo {
   word: string;
@@ -235,7 +235,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
             className="text-primary disabled:opacity-60"
             aria-label="Generate another question"
           >
-            <ArrowRight size={16} />
+            <RefreshCw size={16} className={questionLoading ? "animate-spin" : ""} />
           </button>
         </div>
         <p className="text-sm text-foreground">{questionLoading ? "Updating question..." : question}</p>

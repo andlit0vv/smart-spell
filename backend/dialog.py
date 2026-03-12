@@ -13,6 +13,13 @@ from flask import jsonify, request as flask_request
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-4.1-mini"
 
+
+MAX_QUESTION_LENGTH = 160
+
+
+def _limit_question_length(question: str) -> str:
+    return question.strip()[:MAX_QUESTION_LENGTH]
+
 GENERATE_PROMPT = """You are an English learning exercise generator.
 
 Your task is to create a short practice scenario for an English learner.
@@ -46,11 +53,12 @@ INSTRUCTIONS
 11. Language must match LEVEL.
 12. The situation should be 1–2 sentences.
 13. The question should be 1 sentence.
-14. If the situation does not naturally allow multiple TARGET_WORDS (or at least FOCUS_WORD) to be used in the answer, regenerate the situation.
-15. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
-16. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
-17. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
-18. Prefer situations where very different words (abstract + concrete, technical + everyday) can still be used naturally in one response.
+14. The question must be no longer than 160 characters (including spaces and punctuation).
+15. If the situation does not naturally allow multiple TARGET_WORDS (or at least FOCUS_WORD) to be used in the answer, regenerate the situation.
+16. The new situation must be meaningfully different from PREVIOUS_SITUATIONS (different context, goal, and challenge).
+17. Avoid overused themes unless explicitly requested by USER_DESCRIPTION (for example: time zones, scheduling meetings).
+18. If USER_DESCRIPTION is vague, diversify by choosing varied domains (daily life, travel, study, health, shopping, social plans, technology, customer service, hobbies, etc.).
+19. Prefer situations where very different words (abstract + concrete, technical + everyday) can still be used naturally in one response.
 
 OUTPUT FORMAT (JSON)
 
@@ -73,6 +81,7 @@ The learner should be able to naturally use one or more target words in the answ
 Do not include any target word directly inside the question.
 Use language suitable for LEVEL.
 If PREVIOUS_QUESTION is provided, create a new question with a different angle and wording while staying in the same situation.
+The question must be no longer than 160 characters (including spaces and punctuation).
 
 OUTPUT FORMAT (JSON)
 {{
@@ -349,14 +358,14 @@ def _fallback_generate_response(target_word: str, english_level: str) -> dict[st
         "situation": (
             f"You are preparing for an important conversation at {level_label} level and need to explain your idea clearly."
         ),
-        "question": f"How would you use the word '{target_word}' naturally in your response?",
+        "question": _limit_question_length(f"How would you use the word '{target_word}' naturally in your response?"),
     }
 
 
 def _fallback_question_response(situation: str) -> dict[str, str]:
     trimmed = situation.strip()
     return {
-        "question": f"Given this situation, what would you say and why?" if trimmed else "What would you say in this case?"
+        "question": _limit_question_length(f"Given this situation, what would you say and why?" if trimmed else "What would you say in this case?")
     }
 
 def register_dialog_endpoints(app):
@@ -389,7 +398,7 @@ def register_dialog_endpoints(app):
             llm_response = _fallback_generate_response(focus_word, english_level)
 
         situation = str(llm_response.get("situation") or "").strip()
-        question = str(llm_response.get("question") or "").strip()
+        question = _limit_question_length(str(llm_response.get("question") or ""))
         if situation:
             state.situation_history.append(situation)
 
@@ -429,7 +438,7 @@ def register_dialog_endpoints(app):
             print(f"[Dialog] /question fallback due to LLM error: {exc}", flush=True)
             llm_response = _fallback_question_response(situation)
 
-        return jsonify({"question": str(llm_response.get("question") or "").strip()})
+        return jsonify({"question": _limit_question_length(str(llm_response.get("question") or ""))})
 
     @app.post("/api/dialog/check")
     def dialog_check():
