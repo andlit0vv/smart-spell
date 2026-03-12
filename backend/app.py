@@ -187,5 +187,24 @@ def translation_input():
     })
 
 
+@app.post('/api/translate')
+def translate_only():
+    data = request.get_json(silent=True) or {}
+    text = (data.get('text') or '').strip()
+
+    if not text:
+        return jsonify({'error': 'text is required'}), 400
+
+    try:
+        translation_ru = translate_word_to_russian(text)
+    except TranslationError as error:
+        return jsonify({'error': str(error)}), 502
+
+    return jsonify({
+        'text': text,
+        'translationRu': translation_ru,
+    })
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
