@@ -132,7 +132,7 @@ const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
           whileTap={{ scale: 0.97 }}
           onClick={handleSave}
           disabled={isSaving}
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform disabled:opacity-70"
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary btn-primary-glow py-3.5 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform disabled:opacity-70"
         >
           <Save size={16} />
           {isSaving ? "Saving..." : "Save"}

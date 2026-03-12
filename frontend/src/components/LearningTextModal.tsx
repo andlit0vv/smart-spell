@@ -284,7 +284,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               <button
                 onClick={generateText}
                 disabled={loading || selectedWords.length === 0}
-                className="mt-4 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                className="mt-4 w-full rounded-xl bg-primary btn-primary-glow px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
               >
                 {loading ? (
                   "Generating..."
@@ -328,7 +328,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
                   initial={{ y: 24, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: 24, opacity: 0 }}
-                  className="absolute bottom-24 left-5 right-5 z-20 rounded-2xl border border-border/60 bg-background/95 p-3 shadow-xl backdrop-blur"
+                  className="absolute bottom-24 left-5 right-5 z-20 rounded-2xl glass-modal p-3"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -344,7 +344,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
                         setAnalysisCard(null);
                         setAnalysisError("");
                       }}
-                      className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted"
+                      className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted btn-secondary-glass"
                     >
                       <X size={14} />
                     </button>

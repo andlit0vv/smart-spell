@@ -130,7 +130,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
           whileTap={{ scale: 0.95 }}
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
+          className="flex items-center gap-2 rounded-2xl bg-primary btn-primary-glow px-5 py-3 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
         >
           <span className="hidden sm:inline">{isSubmitting ? "Sending..." : "Enter a Word"}</span>
           <ArrowRight size={18} />
@@ -194,14 +194,14 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={handleSkip}
-                className="flex-1 rounded-xl glass py-2.5 text-[14px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                className="flex-1 rounded-xl glass btn-secondary-glass py-2.5 text-[14px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
               >
                 Skip
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={handleAdd}
-                className="flex-1 rounded-xl bg-primary py-2.5 text-[14px] font-semibold text-primary-foreground shadow-md shadow-primary/15 transition-all"
+                className="flex-1 rounded-xl bg-primary btn-primary-glow py-2.5 text-[14px] font-semibold text-primary-foreground shadow-md shadow-primary/15 transition-all"
               >
                 Add
               </motion.button>

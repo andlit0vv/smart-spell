@@ -25,7 +25,7 @@ const ReadScreen = ({ theme, toggleTheme }: ReadScreenProps) => {
       <motion.button
         whileTap={{ scale: 0.97 }}
         onClick={() => setShowUploadModal(true)}
-        className="mt-5 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-primary py-3.5 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
+        className="mt-5 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-primary btn-primary-glow py-3.5 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
       >
         <Upload size={18} />
         Upload a Book
@@ -61,7 +61,7 @@ const ReadScreen = ({ theme, toggleTheme }: ReadScreenProps) => {
                 <h2 className="text-lg font-bold text-foreground">Upload a Book</h2>
                 <button
                   onClick={() => setShowUploadModal(false)}
-                  className="rounded-full p-1.5 hover:bg-muted transition-colors"
+                  className="rounded-full p-1.5 hover:bg-muted transition-colors btn-secondary-glass"
                 >
                   <X size={18} className="text-muted-foreground" />
                 </button>
@@ -81,14 +81,14 @@ const ReadScreen = ({ theme, toggleTheme }: ReadScreenProps) => {
               </div>
 
               <div className="mt-4 flex gap-3">
-                <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border bg-muted/50 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
+                <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border bg-muted/50 btn-secondary-glass py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
                   <Upload size={16} />
                   Choose File
                   <input type="file" accept=".txt,.fb2" className="hidden" />
                 </label>
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary btn-primary-glow py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20"
                 >
                   Upload
                 </motion.button>

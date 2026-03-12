@@ -120,7 +120,7 @@ const VocabCard = ({
             <button
               type="button"
               onClick={() => setShowCreate((prev) => !prev)}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-zinc-500/50 bg-zinc-700/70 text-zinc-200 transition-colors hover:bg-zinc-600/80"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-zinc-500/50 btn-secondary-glass bg-zinc-700/70 text-zinc-200 transition-colors hover:bg-zinc-600/80"
             >
               <Plus size={14} />
             </button>
@@ -138,7 +138,7 @@ const VocabCard = ({
               <button
                 type="button"
                 onClick={handleAddCategory}
-                className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                className="mt-2 rounded-lg bg-primary btn-primary-glow px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
               >
                 Add
               </button>
@@ -202,7 +202,7 @@ const VocabCard = ({
                     setActiveAnchor("plus");
                     onCategoryDropdownChange(!isCategoryDropdownOpen);
                   }}
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-600/60 text-zinc-200 transition-all hover:bg-zinc-500/80"
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-600/60 btn-secondary-glass text-zinc-200 transition-all hover:bg-zinc-500/80"
                 >
                   <Plus size={12} />
                 </button>
