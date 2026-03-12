@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Send, CheckCircle, AlertCircle, ArrowRight, RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { ArrowLeft, RotateCcw, Send, ArrowRight, RefreshCw, GraduationCap } from "lucide-react";
 
 interface WordInfo {
   word: string;
@@ -10,239 +10,246 @@ interface WordInfo {
 interface DialogueTrainingProps {
   words: WordInfo[];
   onExit: () => void;
+  targetCategory?: string;
 }
 
-interface FeedbackData {
-  wordsUsed: { word: string; used: boolean }[];
-  grammarOk: boolean;
-  suggestion: string;
+interface PracticeState {
+  target_words: string[];
+  word_status: Record<string, "unused" | "correct" | "incorrect">;
+  correct_count: number;
+  total_words: number;
 }
 
-const scenarios = [
-  {
-    situation: "You are discussing your salary with your manager during a performance review.",
-    question: "Why do you think you deserve a higher salary?",
-  },
-  {
-    situation: "You are planning a team project deadline with your colleagues.",
-    question: "How would you handle a disagreement about the timeline?",
-  },
-  {
-    situation: "You are at a business meeting trying to close a deal with a new client.",
-    question: "What approach would you take to reach a mutually beneficial agreement?",
-  },
-  {
-    situation: "You are resolving a conflict between two team members who disagree on the approach.",
-    question: "How would you help them find common ground?",
-  },
-];
+const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingProps) => {
+  const targetWords = useMemo(() => words.map((item) => item.word), [words]);
+  const [practiceId, setPracticeId] = useState<string | null>(null);
+  const [level, setLevel] = useState("B1");
+  const [userDescription, setUserDescription] = useState("English learner");
+  const [loading, setLoading] = useState(false);
+  const [answerLoading, setAnswerLoading] = useState(false);
+  const [questionLoading, setQuestionLoading] = useState(false);
 
-const generateFeedback = (answer: string, words: WordInfo[]): FeedbackData => {
-  const wordsUsed = words.map((w) => ({
-    word: w.word,
-    used: answer.toLowerCase().includes(w.word.toLowerCase()),
-  }));
-  const grammarOk = answer.trim().length > 10 && answer.trim().endsWith(".");
-  const allUsed = wordsUsed.every((w) => w.used);
-  const wordList = words.map((w) => w.word.toLowerCase()).join(", ");
-
-  const suggestion = allUsed
-    ? `Great job using all target words! A more polished version could incorporate them even more naturally.`
-    : `Try to include all the words (${wordList}) in a single coherent response.`;
-
-  return { wordsUsed, grammarOk, suggestion };
-};
-
-const DialogueTraining = ({ words, onExit }: DialogueTrainingProps) => {
-  const [scenarioIndex, setScenarioIndex] = useState(0);
+  const [situation, setSituation] = useState("");
+  const [initialSituation, setInitialSituation] = useState("");
+  const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState<FeedbackData | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [state, setState] = useState<PracticeState>({
+    target_words: targetWords,
+    word_status: Object.fromEntries(targetWords.map((word) => [word, "unused"])),
+    correct_count: 0,
+    total_words: targetWords.length,
+  });
+  const [feedback, setFeedback] = useState<{ message: string; correction: string }>({
+    message: "",
+    correction: "",
+  });
+  const [complete, setComplete] = useState(false);
 
-  const scenario = scenarios[scenarioIndex % scenarios.length];
-  const wordLabels = words.map((w) => w.word).join(", ");
+  const progress = state.total_words > 0 ? (state.correct_count / state.total_words) * 100 : 0;
 
-  const handleSubmit = () => {
+  const loadProfile = async () => {
+    try {
+      const response = await fetch("/api/profile");
+      const payload = await response.json();
+      if (response.ok && payload.profile) {
+        if (payload.profile.englishLevel) setLevel(payload.profile.englishLevel);
+        if (payload.profile.bio) setUserDescription(payload.profile.bio);
+      }
+    } catch (error) {
+      console.error("[Dialogue] Failed to load profile", error);
+    }
+  };
+
+  const generateScenario = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/dialog/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          practice_id: practiceId,
+          user_description: userDescription,
+          level,
+          target_words: targetWords,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to generate scenario");
+
+      setPracticeId(payload.practice_id);
+      setSituation(payload.situation || "");
+      setInitialSituation(payload.situation || "");
+      setQuestion(payload.question || "");
+      if (payload.practice_state) setState(payload.practice_state);
+      setFeedback({ message: "", correction: "" });
+      setAnswer("");
+    } catch (error) {
+      console.error("[Dialogue] Generate failed", error);
+      setFeedback({ message: "Could not generate a situation. Please try again.", correction: "" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const regenerateQuestion = async () => {
+    if (!situation.trim() || situation === initialSituation) return;
+    setQuestionLoading(true);
+    try {
+      const response = await fetch("/api/dialog/question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ situation, target_words: targetWords, level }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to regenerate question");
+      setQuestion(payload.question || "");
+      setInitialSituation(situation);
+    } catch (error) {
+      console.error("[Dialogue] Question generation failed", error);
+    } finally {
+      setQuestionLoading(false);
+    }
+  };
+
+  const checkAnswer = async () => {
     if (!answer.trim()) return;
-    setFeedback(generateFeedback(answer, words));
-    setSubmitted(true);
+    setAnswerLoading(true);
+    try {
+      const response = await fetch("/api/dialog/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          practice_id: practiceId,
+          answer,
+          target_words: targetWords,
+          level,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to check answer");
+
+      if (payload.practice_state) setState(payload.practice_state);
+      setPracticeId(payload.practice_id);
+      setFeedback({ message: payload.message || "", correction: payload.correction || "" });
+      setComplete(Boolean(payload.is_complete));
+    } catch (error) {
+      console.error("[Dialogue] Check failed", error);
+      setFeedback({ message: "Could not check your answer. Please retry.", correction: "" });
+    } finally {
+      setAnswerLoading(false);
+    }
   };
 
-  const handleNext = () => {
-    setScenarioIndex((i) => i + 1);
-    setAnswer("");
-    setFeedback(null);
-    setSubmitted(false);
-  };
+  useEffect(() => {
+    const run = async () => {
+      await loadProfile();
+      await generateScenario();
+    };
+    void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="mx-auto max-w-lg px-5 pb-36 pt-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={onExit}
-          className="flex h-10 w-10 items-center justify-center rounded-xl glass"
-        >
+      <div className="mb-6 flex items-center gap-3">
+        <motion.button whileTap={{ scale: 0.9 }} onClick={onExit} className="flex h-10 w-10 items-center justify-center rounded-xl glass">
           <ArrowLeft size={18} className="text-foreground" />
         </motion.button>
-        <div className="flex-1">
-          <h1 className="text-lg font-bold text-foreground">Dialogue Practice</h1>
-        </div>
+        <h1 className="text-lg font-bold text-foreground">Dialogue Practice</h1>
       </div>
 
-      {/* Target words */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
-        <span className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Target {words.length > 1 ? "Words" : "Word"}:
-        </span>
-        {words.map((w) => (
-          <span
-            key={w.word}
-            className="rounded-full bg-primary/15 px-3.5 py-1 text-[13px] font-bold text-primary"
+      <div className="mb-4 text-sm text-muted-foreground">
+        {targetCategory ? (
+          <span><strong>Target category:</strong> {targetCategory}</span>
+        ) : (
+          <span><strong>Target words:</strong> {targetWords.join(", ")}</span>
+        )}
+      </div>
+
+      <div className="mb-3 rounded-2xl glass p-5">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Situation</p>
+          <button onClick={generateScenario} className="text-primary" aria-label="Refresh situation">
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
+        <textarea
+          value={situation}
+          onChange={(e) => setSituation(e.target.value)}
+          onBlur={regenerateQuestion}
+          rows={3}
+          className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      </div>
+
+      <div className="mb-4 rounded-2xl glass p-5">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">Question</p>
+        <p className="text-sm text-foreground">{questionLoading ? "Updating question..." : question}</p>
+      </div>
+
+      <div className="space-y-3">
+        <label className="text-[12px] font-medium text-muted-foreground">Your answer</label>
+        <div className="relative">
+          <textarea
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            placeholder="Write your answer..."
+            rows={4}
+            className="w-full resize-none rounded-2xl glass px-4 py-3 pr-12 text-[14px] text-foreground"
+          />
+          <button
+            onClick={checkAnswer}
+            disabled={answerLoading || !answer.trim()}
+            className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
           >
-            {w.word}
-          </span>
-        ))}
+            <Send size={14} />
+          </button>
+        </div>
       </div>
 
-      {/* Situation card */}
-      <motion.div
-        key={scenarioIndex}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="rounded-2xl glass p-5 mb-4"
-      >
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-2">
-          Situation
-        </p>
-        <p className="text-[14px] leading-relaxed text-foreground">{scenario.situation}</p>
-      </motion.div>
-
-      {/* AI Question */}
-      <motion.div
-        key={`q-${scenarioIndex}`}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        className="rounded-2xl glass p-5 mb-5"
-      >
-        <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15">
-            <span className="text-xs font-bold text-primary">AI</span>
-          </div>
-          <p className="text-[14px] leading-relaxed text-foreground pt-1">{scenario.question}</p>
+      <div className="mt-4">
+        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+          <span>Progress</span>
+          <span>{state.correct_count} / {state.total_words} words mastered</span>
         </div>
-      </motion.div>
+        <div className="h-2 rounded-full bg-muted">
+          <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
 
-      {/* Answer input */}
-      {!submitted ? (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-          <label className="text-[12px] font-medium text-muted-foreground">
-            Write your answer using {words.length > 1 ? "the words" : "the word"}{" "}
-            "<span className="text-primary font-semibold">{wordLabels}</span>"
-          </label>
-          <div className="relative">
-            <textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder={`Type your answer using "${wordLabels}"...`}
-              rows={3}
-              className="w-full rounded-2xl glass px-4 py-3 pr-12 text-[14px] text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-            />
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={handleSubmit}
-              disabled={!answer.trim()}
-              className="absolute right-3 bottom-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40 shadow-md shadow-primary/20 transition-opacity"
-            >
-              <Send size={14} />
-            </motion.button>
-          </div>
-        </motion.div>
-      ) : (
-        <AnimatePresence>
-          {feedback && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ type: "spring", stiffness: 350, damping: 28 }}
-              className="space-y-3"
-            >
-              {/* User answer recap */}
-              <div className="rounded-2xl bg-muted/40 px-4 py-3">
-                <p className="text-[12px] font-medium text-muted-foreground mb-1">Your answer</p>
-                <p className="text-[13px] text-foreground italic">"{answer}"</p>
-              </div>
+      <div className="mt-4 rounded-2xl glass p-4">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">Feedback</p>
+        <p className="text-sm text-foreground">{feedback.message || "Submit your answer to get feedback."}</p>
+        {feedback.correction && <p className="mt-2 text-sm text-muted-foreground">Correction: {feedback.correction}</p>}
+      </div>
 
-              {/* Feedback card */}
-              <div className="rounded-2xl glass p-5 space-y-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-1">
-                  Feedback
-                </p>
-
-                {feedback.wordsUsed.map((wu) => (
-                  <div key={wu.word} className="flex items-center gap-2">
-                    {wu.used ? (
-                      <CheckCircle size={15} className="text-green-500 shrink-0" />
-                    ) : (
-                      <AlertCircle size={15} className="text-destructive shrink-0" />
-                    )}
-                    <p className="text-[13px] text-foreground">
-                      {wu.used
-                        ? `"${wu.word}" used correctly`
-                        : `Try to include "${wu.word}" in your answer`}
-                    </p>
-                  </div>
-                ))}
-
-                <div className="flex items-center gap-2">
-                  {feedback.grammarOk ? (
-                    <CheckCircle size={15} className="text-green-500 shrink-0" />
-                  ) : (
-                    <AlertCircle size={15} className="text-secondary shrink-0" />
-                  )}
-                  <p className="text-[13px] text-foreground">
-                    {feedback.grammarOk ? "Grammar looks good" : "Check grammar and punctuation"}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-muted/50 px-4 py-3 mt-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                    Suggested improvement
-                  </p>
-                  <p className="text-[13px] leading-relaxed text-foreground">{feedback.suggestion}</p>
-                </div>
-              </div>
-
-              {/* Navigation */}
-              <div className="flex gap-3 pt-1">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleNext}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary py-3 text-[14px] font-semibold text-primary-foreground shadow-lg shadow-primary/20"
-                >
-                  <ArrowRight size={16} />
-                  Next Question
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => {
-                    setAnswer("");
-                    setFeedback(null);
-                    setSubmitted(false);
-                  }}
-                  className="flex items-center justify-center gap-2 rounded-xl glass px-5 py-3 text-[14px] font-semibold text-foreground"
-                >
-                  <RotateCcw size={15} />
-                  Retry
-                </motion.button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      {complete && (
+        <div className="mt-4 rounded-2xl bg-green-500/10 p-4 text-sm text-green-700 dark:text-green-400">
+          Practice complete. You used all selected words correctly.
+        </div>
       )}
+
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <button
+          onClick={checkAnswer}
+          className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold"
+        >
+          <RotateCcw size={15} /> Retry
+        </button>
+        <button
+          onClick={generateScenario}
+          className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold"
+        >
+          <ArrowRight size={15} /> Next Question
+        </button>
+        <button
+          onClick={generateScenario}
+          disabled={complete || loading}
+          className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          <GraduationCap size={15} /> Learn and Practice
+        </button>
+      </div>
     </div>
   );
 };

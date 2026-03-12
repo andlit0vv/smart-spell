@@ -1,8 +1,10 @@
 from flask import Flask, jsonify, request
 
 from llm import LLMError, analyze_term
+from dialog import register_dialog_endpoints
 
 app = Flask(__name__)
+register_dialog_endpoints(app)
 
 # Temporary in-memory storage for a single local user profile.
 # NOTE: This survives only while Flask process is running.
