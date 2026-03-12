@@ -49,7 +49,7 @@ const Index = () => {
   };
 
   return (
-    <div className="app-gradient-bg min-h-screen bg-background pt-16 transition-colors duration-300">
+    <div className="app-gradient-bg min-h-screen bg-background pt-12 transition-colors duration-300">
       {showLevelModal ? <EnglishLevelModal onComplete={handleLevelSelect} /> : null}
       {activeTab === "translation" && <TranslationScreen theme={theme} toggleTheme={toggleTheme} />}
       {activeTab === "read" && <ReadScreen theme={theme} toggleTheme={toggleTheme} />}
