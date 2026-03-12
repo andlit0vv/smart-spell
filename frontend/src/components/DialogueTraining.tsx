@@ -93,14 +93,15 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
     }
   };
 
-  const regenerateQuestion = async () => {
-    if (!situation.trim() || situation === initialSituation) return;
+  const regenerateQuestion = async (force = false) => {
+    if (!situation.trim()) return;
+    if (!force && situation === initialSituation) return;
     setQuestionLoading(true);
     try {
       const response = await fetch("/api/dialog/question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ situation, target_words: targetWords, level }),
+        body: JSON.stringify({ situation, target_words: targetWords, level, previous_question: question }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to regenerate question");
@@ -112,6 +113,27 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
     } finally {
       setQuestionLoading(false);
     }
+  };
+
+  const restartPractice = () => {
+    setPracticeId(null);
+    setState({
+      target_words: targetWords,
+      word_status: Object.fromEntries(targetWords.map((word) => [word, "unused"])),
+      correct_count: 0,
+      total_words: targetWords.length,
+    });
+    setFeedback({ message: "", correction: "" });
+    setAnswer("");
+    setComplete(false);
+  };
+
+  const nextQuestion = async () => {
+    if (!situation.trim()) {
+      await generateScenario();
+      return;
+    }
+    await regenerateQuestion(true);
   };
 
   const checkAnswer = async () => {
@@ -188,7 +210,7 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
         <textarea
           value={situation}
           onChange={(e) => setSituation(e.target.value)}
-          onBlur={regenerateQuestion}
+          onBlur={() => void regenerateQuestion()}
           readOnly={!isEditingSituation}
           rows={3}
           className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 read-only:opacity-80"
@@ -244,14 +266,15 @@ const DialogueTraining = ({ words, onExit, targetCategory }: DialogueTrainingPro
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <button
-          onClick={checkAnswer}
+          onClick={restartPractice}
           className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold"
         >
-          <RotateCcw size={15} /> Retry
+          <RotateCcw size={15} /> Start Over
         </button>
         <button
-          onClick={generateScenario}
-          className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold"
+          onClick={nextQuestion}
+          disabled={questionLoading || loading}
+          className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold disabled:opacity-60"
         >
           <ArrowRight size={15} /> Next Question
         </button>
