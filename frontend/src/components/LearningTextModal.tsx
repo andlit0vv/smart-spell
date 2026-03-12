@@ -255,7 +255,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
-            className="relative z-10 mx-auto flex h-[min(92vh,860px)] w-full max-w-lg flex-col rounded-2xl glass-modal-strong px-5 pt-6"
+            className="relative z-10 mx-auto flex h-[min(92vh,860px)] w-full max-w-2xl flex-col rounded-2xl glass-modal-strong px-5 pt-6"
           >
             <h1 className="text-xl font-bold tracking-tight text-foreground">Generated Learning Text</h1>
 
@@ -298,19 +298,21 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               </button>
             </div>
 
-            <div className="mt-5 flex-1 overflow-y-auto pb-28">
+            <div className="mt-3 flex-1 overflow-y-auto pb-4">
               {error && <p className="text-sm text-red-500">{error}</p>}
               {!error && !text && !loading && (
-                <p className="text-sm text-muted-foreground">Select options and generate a reading text.</p>
+                <div className="flex min-h-[48px] items-center justify-center">
+                  <p className="text-center text-sm text-muted-foreground">Select options and generate a reading text.</p>
+                </div>
               )}
               {text && (
-                <div onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
+                <div className="mx-auto w-full max-w-[780px]" onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
                   <ReadingText text={text} stems={targetStems} words={targetWordsSet} />
                 </div>
               )}
             </div>
 
-            <div className="pb-6 pt-4">
+            <div className="pb-6 pt-3">
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={onClose}

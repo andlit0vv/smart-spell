@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Languages, BarChart3, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
@@ -6,6 +6,13 @@ import ThemeToggle from "./ThemeToggle";
 interface TranslationScreenProps {
   theme: "light" | "dark";
   toggleTheme: () => void;
+}
+
+interface InlineTranslation {
+  text: string;
+  translation: string;
+  x: number;
+  y: number;
 }
 
 interface WordResult {
@@ -22,6 +29,9 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [inlineTranslation, setInlineTranslation] = useState<InlineTranslation | null>(null);
+  const [inlineTranslationLoading, setInlineTranslationLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const handleSubmit = async () => {
     if (!word.trim()) return;
@@ -69,6 +79,64 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   const handleSkip = () => {
     setResult(null);
     setWord("");
+    setInlineTranslation(null);
+  };
+
+  const requestInlineTranslation = async (selectionText: string, rect: DOMRect) => {
+    const normalizedText = selectionText.replace(/\s+/g, " ").trim();
+    if (!normalizedText) return;
+
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    const fallbackX = rect.left + rect.width / 2;
+    const fallbackY = rect.top;
+
+    setInlineTranslationLoading(true);
+
+    try {
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: normalizedText }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Translation request failed");
+      }
+
+      const translation = typeof payload.translationRu === "string" ? payload.translationRu : "";
+      setInlineTranslation({
+        text: normalizedText,
+        translation: translation || "Перевод не найден",
+        x: (containerRect ? fallbackX - containerRect.left : fallbackX) - 10,
+        y: (containerRect ? fallbackY - containerRect.top : fallbackY) - 10,
+      });
+    } catch {
+      setInlineTranslation({
+        text: normalizedText,
+        translation: "Ошибка перевода",
+        x: (containerRect ? fallbackX - containerRect.left : fallbackX) - 10,
+        y: (containerRect ? fallbackY - containerRect.top : fallbackY) - 10,
+      });
+    } finally {
+      setInlineTranslationLoading(false);
+    }
+  };
+
+  const handleDefinitionSelection = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
+
+    const selectedText = selection.toString();
+    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+    const rect = range?.getBoundingClientRect();
+
+    if (!selectedText.trim() || !rect || rect.width === 0) return;
+
+    void requestInlineTranslation(selectedText, rect);
+    selection.removeAllRanges();
   };
 
   const handleAdd = () => {
@@ -107,8 +175,20 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
     void saveWord();
   };
 
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (!containerRef.current?.contains(event.target)) {
+        setInlineTranslation(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
   return (
-    <div className="mx-auto max-w-lg px-5 pb-36 pt-6">
+    <div ref={containerRef} className="relative mx-auto max-w-lg px-5 pb-36 pt-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Translation</h1>
@@ -161,7 +241,13 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
               </span>
             </div>
 
-            <p className="mt-3 text-[14px] leading-relaxed text-foreground/80">{result.definition}</p>
+            <p
+              className="mt-3 select-text text-[14px] leading-relaxed text-foreground/80"
+              onMouseUp={handleDefinitionSelection}
+              onTouchEnd={handleDefinitionSelection}
+            >
+              {result.definition}
+            </p>
 
             <div className="mt-4 flex items-center gap-2">
               <BarChart3 size={14} className="text-primary" />
@@ -189,8 +275,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
               </ul>
             </div>
 
-            {/* Skip / Add buttons */}
-            <div className="flex gap-3 mt-5">
+            <div className="mt-5 flex gap-3">
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={handleSkip}
@@ -217,6 +302,24 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
               <Languages size={36} className="text-muted-foreground/40 mx-auto" />
               <p className="mt-3 text-sm text-muted-foreground">Enter a word above to get started</p>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {(inlineTranslationLoading || inlineTranslation) && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.98 }}
+            className="pointer-events-none absolute z-30 max-w-[280px] rounded-xl border border-border/60 bg-background/95 px-2.5 py-1.5 text-xs text-foreground shadow-lg"
+            style={{
+              left: inlineTranslation ? `${inlineTranslation.x}px` : "50%",
+              top: inlineTranslation ? `${Math.max(inlineTranslation.y - 44, 12)}px` : "12px",
+              transform: "translateX(-50%)",
+            }}
+          >
+            {inlineTranslationLoading ? "Перевод..." : inlineTranslation?.translation}
           </motion.div>
         )}
       </AnimatePresence>
