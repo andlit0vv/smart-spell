@@ -371,7 +371,11 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
         )}
       </AnimatePresence>
 
-      <LearningTextModal open={learningMode === "text"} onClose={() => { setLearningMode(null); setSelected(new Set()); }} />
+      <LearningTextModal
+        open={learningMode === "text"}
+        selectedWords={selectedWords.map((item) => item.word)}
+        onClose={() => { setLearningMode(null); setSelected(new Set()); }}
+      />
     </>
   );
 };
