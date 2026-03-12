@@ -183,10 +183,9 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     setSelected(new Set());
   };
 
-  const handleDialogueFinish = (markAsLearned: boolean, masteredWords: string[]) => {
+  const handleDialogueFinish = (markAsLearned: boolean) => {
     if (markAsLearned) {
-      const masteredSet = new Set(masteredWords);
-      setWords((prev) => prev.filter((w) => !masteredSet.has(w.word)));
+      setWords((prev) => prev.filter((w) => !selected.has(w.word)));
     }
 
     setLearningMode(null);

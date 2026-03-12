@@ -10,7 +10,7 @@ interface WordInfo {
 interface DialogueTrainingProps {
   words: WordInfo[];
   onExit: () => void;
-  onFinishPractice: (markAsLearned: boolean, masteredWords: string[]) => void;
+  onFinishPractice: (markAsLearned: boolean) => void;
   targetCategory?: string;
 }
 
@@ -300,7 +300,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
               <button
                 onClick={() => {
                   setShowFinishModal(false);
-                  onFinishPractice(false, []);
+                  onFinishPractice(false);
                 }}
                 className="w-full rounded-xl glass px-4 py-3 text-sm font-semibold text-foreground"
               >
@@ -309,9 +309,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
               <button
                 onClick={() => {
                   setShowFinishModal(false);
-                  onFinishPractice(true, Object.entries(state.word_status)
-                    .filter(([, status]) => status === "correct")
-                    .map(([word]) => word));
+                  onFinishPractice(true);
                 }}
                 className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
               >
