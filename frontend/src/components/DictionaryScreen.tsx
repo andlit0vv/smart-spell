@@ -60,8 +60,18 @@ const initialWords: WordData[] = [
 type LearningMode = null | "chooser" | "text" | "dialogue";
 
 const CATEGORY_PALETTE = ["#5D6BFF", "#8B5CF6", "#2BA8FF", "#22C55E", "#D946EF", "#F97316", "#EAB308"];
+const FIXED_CATEGORY_COLORS: Record<string, string> = {
+  general: "#F97316",
+  it: "#7C3AED",
+  medicine: "#16A34A",
+};
 
 const getColorFromName = (name: string) => {
+  const fixedColor = FIXED_CATEGORY_COLORS[name.trim().toLowerCase()];
+  if (fixedColor) {
+    return fixedColor;
+  }
+
   const hash = name
     .toLowerCase()
     .split("")

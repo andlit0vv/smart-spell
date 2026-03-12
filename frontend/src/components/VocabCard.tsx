@@ -42,10 +42,10 @@ const hexToRgb = (hex: string) => {
 const getCategoryTone = (hex: string) => {
   const { r, g, b } = hexToRgb(hex);
   return {
-    tagBackground: `rgba(${r}, ${g}, ${b}, 0.32)`,
-    panelBackground: `rgba(${r}, ${g}, ${b}, 0.22)`,
-    border: `rgba(${r}, ${g}, ${b}, 0.6)`,
-    text: `rgb(${Math.min(255, r + 105)}, ${Math.min(255, g + 105)}, ${Math.min(255, b + 105)})`,
+    tagBackground: `rgba(${r}, ${g}, ${b}, 0.2)`,
+    panelBackground: `rgba(${r}, ${g}, ${b}, 0.18)`,
+    border: `rgba(${r}, ${g}, ${b}, 0.9)`,
+    text: `rgb(${Math.min(255, r + 35)}, ${Math.min(255, g + 35)}, ${Math.min(255, b + 35)})`,
   };
 };
 
@@ -128,12 +128,12 @@ const VocabCard = ({
 
           {showCreate && (
             <div className="mt-2 rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs font-semibold text-zinc-200">Create category</p>
+              <p className="text-xs font-semibold text-foreground">Create category</p>
               <input
                 value={newCategoryName}
                 onChange={(event) => setNewCategoryName(event.target.value)}
                 placeholder="Category name"
-                className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-100 outline-none transition-colors focus:border-primary"
+                className="mt-2 w-full rounded-lg border border-white/20 bg-background/80 px-2.5 py-1.5 text-xs text-foreground outline-none transition-colors focus:border-primary"
               />
               <button
                 type="button"
