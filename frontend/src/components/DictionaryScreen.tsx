@@ -293,7 +293,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleMarkLearned}
-              className="flex items-center gap-2 rounded-full glass px-6 py-3 text-[14px] font-semibold text-foreground transition-transform"
+              className="flex items-center gap-2 rounded-full glass btn-secondary-glass px-6 py-3 text-[14px] font-semibold text-foreground transition-transform"
             >
               <CheckCircle2 size={16} />
               Mark as Learned
@@ -301,7 +301,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setLearningMode("chooser")}
-              className="flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-[14px] font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform"
+              className="flex items-center gap-2 rounded-full bg-primary btn-primary-glow px-6 py-3 text-[14px] font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform"
             >
               <Sparkles size={16} />
               Learn Words

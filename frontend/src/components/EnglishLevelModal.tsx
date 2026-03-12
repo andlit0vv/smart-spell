@@ -72,7 +72,7 @@ const EnglishLevelModal = ({ onComplete }: EnglishLevelModalProps) => {
                   <button
                     type="button"
                     onClick={() => toggleLevel(level)}
-                    className={`h-24 w-full rounded-xl border text-lg font-bold transition-colors ${
+                    className={`h-24 w-full rounded-xl border text-lg font-bold transition-colors btn-secondary-glass ${
                       isActive
                         ? "border-orange-500 bg-orange-500 text-white"
                         : "border-border bg-muted/60 text-foreground"
@@ -95,7 +95,7 @@ const EnglishLevelModal = ({ onComplete }: EnglishLevelModalProps) => {
           type="button"
           disabled={!selectedRange || isSaving}
           onClick={handleContinue}
-          className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          className="mt-4 w-full rounded-xl bg-primary btn-primary-glow py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
         >
           {isSaving ? "Saving..." : "Start"}
         </button>
