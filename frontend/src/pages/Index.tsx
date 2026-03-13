@@ -51,10 +51,18 @@ const Index = () => {
   return (
     <div className="app-gradient-bg min-h-screen bg-background pt-12 transition-colors duration-300">
       {showLevelModal ? <EnglishLevelModal onComplete={handleLevelSelect} /> : null}
-      {activeTab === "translation" && <TranslationScreen theme={theme} toggleTheme={toggleTheme} />}
-      {activeTab === "read" && <ReadScreen theme={theme} toggleTheme={toggleTheme} />}
-      {activeTab === "dictionary" && <DictionaryScreen theme={theme} toggleTheme={toggleTheme} />}
-      {activeTab === "profile" && <ProfileScreen theme={theme} toggleTheme={toggleTheme} />}
+      <div className={activeTab === "translation" ? "block" : "hidden"}>
+        <TranslationScreen theme={theme} toggleTheme={toggleTheme} />
+      </div>
+      <div className={activeTab === "read" ? "block" : "hidden"}>
+        <ReadScreen theme={theme} toggleTheme={toggleTheme} />
+      </div>
+      <div className={activeTab === "dictionary" ? "block" : "hidden"}>
+        <DictionaryScreen theme={theme} toggleTheme={toggleTheme} />
+      </div>
+      <div className={activeTab === "profile" ? "block" : "hidden"}>
+        <ProfileScreen theme={theme} toggleTheme={toggleTheme} />
+      </div>
       <BottomNav active={activeTab} onTabChange={setActiveTab} />
     </div>
   );

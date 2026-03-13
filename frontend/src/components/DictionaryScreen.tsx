@@ -171,6 +171,16 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
   const selectedWords = words.filter((w) => selected.has(w.word));
 
+  useEffect(() => {
+    if (categoryFilters.size === 0) return;
+
+    setSelected((prev) => {
+      const next = new Set(filteredWords.map((item) => item.word));
+      const unchanged = prev.size === next.size && Array.from(next).every((word) => prev.has(word));
+      return unchanged ? prev : next;
+    });
+  }, [categoryFilters, filteredWords]);
+
   const toggle = (word: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
