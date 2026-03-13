@@ -9,7 +9,9 @@ import EnglishLevelModal from "@/components/EnglishLevelModal";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<TabId>("dictionary");
-  const [showLevelModal, setShowLevelModal] = useState(false);
+  const [showFirstLevelModal, setShowFirstLevelModal] = useState(false);
+  const [showEditLevelModal, setShowEditLevelModal] = useState(false);
+  const [englishLevel, setEnglishLevel] = useState("");
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -19,8 +21,11 @@ const Index = () => {
         if (!response.ok) return;
 
         const payload = await response.json();
-        if (!payload.profile?.englishLevel) {
-          setShowLevelModal(true);
+        const savedLevel = payload.profile?.englishLevel || "";
+        setEnglishLevel(savedLevel);
+
+        if (!savedLevel) {
+          setShowFirstLevelModal(true);
         }
       } catch {
         // Keep app usable even if backend is temporarily unreachable.
@@ -30,7 +35,7 @@ const Index = () => {
     void loadProfile();
   }, []);
 
-  const handleLevelSelect = async (levelRange: string) => {
+  const handleFirstLevelSelect = async (levelRange: string) => {
     const response = await fetch("/api/profile", {
       method: "POST",
       headers: {
@@ -45,12 +50,45 @@ const Index = () => {
       throw new Error("Unable to save level");
     }
 
-    setShowLevelModal(false);
+    setEnglishLevel(levelRange);
+    setShowFirstLevelModal(false);
+  };
+
+  const handleEditLevel = async (levelRange: string) => {
+    const response = await fetch("/api/profile", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        englishLevel: levelRange,
+        forceUpdateEnglishLevel: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Unable to update level");
+    }
+
+    setEnglishLevel(levelRange);
+    setShowEditLevelModal(false);
   };
 
   return (
     <div className="app-gradient-bg min-h-screen bg-background pt-12 transition-colors duration-300">
-      {showLevelModal ? <EnglishLevelModal onComplete={handleLevelSelect} /> : null}
+      {showFirstLevelModal ? (
+        <EnglishLevelModal onComplete={handleFirstLevelSelect} confirmLabel="Start" />
+      ) : null}
+      {showEditLevelModal ? (
+        <EnglishLevelModal
+          onComplete={handleEditLevel}
+          title="Update your English level"
+          description="Change your current level when you feel your level has improved."
+          confirmLabel="Save level"
+          initialLevel={englishLevel}
+        />
+      ) : null}
+
       <div className={activeTab === "translation" ? "block" : "hidden"}>
         <TranslationScreen theme={theme} toggleTheme={toggleTheme} />
       </div>
@@ -61,7 +99,12 @@ const Index = () => {
         <DictionaryScreen theme={theme} toggleTheme={toggleTheme} />
       </div>
       <div className={activeTab === "profile" ? "block" : "hidden"}>
-        <ProfileScreen theme={theme} toggleTheme={toggleTheme} />
+        <ProfileScreen
+          theme={theme}
+          toggleTheme={toggleTheme}
+          englishLevel={englishLevel}
+          onEditEnglishLevel={() => setShowEditLevelModal(true)}
+        />
       </div>
       <BottomNav active={activeTab} onTabChange={setActiveTab} />
     </div>

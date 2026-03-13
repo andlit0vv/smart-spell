@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Save } from "lucide-react";
+import { Save, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
@@ -7,16 +7,16 @@ import ThemeToggle from "./ThemeToggle";
 interface ProfileScreenProps {
   theme: "light" | "dark";
   toggleTheme: () => void;
+  englishLevel: string;
+  onEditEnglishLevel: () => void;
 }
 
-const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
+const ProfileScreen = ({ theme, toggleTheme, englishLevel, onEditEnglishLevel }: ProfileScreenProps) => {
   const [bio, setBio] = useState("");
   const [name, setName] = useState("");
-  // Added loading flag to prevent double-save clicks while backend request is running.
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    // Load the last profile state from backend memory when Profile screen opens.
     const loadProfile = async () => {
       try {
         const response = await fetch("/api/profile");
@@ -25,16 +25,14 @@ const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
         setName(payload.profile?.name || "");
         setBio(payload.profile?.bio || "");
       } catch {
-        // Intentionally ignore initial-load errors to keep screen usable offline.
+        // Keep profile screen usable even if backend is temporarily unreachable.
       }
     };
 
-    loadProfile();
+    void loadProfile();
   }, []);
 
   const handleSave = async () => {
-    // Previously this handler only showed toast; now it performs real backend save.
-    // Validate empty profile so we do not send useless requests.
     if (!name.trim() && !bio.trim()) {
       toast.error("Please enter name or description first");
       return;
@@ -43,7 +41,6 @@ const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
     setIsSaving(true);
 
     try {
-      // Send both name + bio to backend so they appear in IDE terminal and API response.
       const response = await fetch("/api/profile", {
         method: "POST",
         headers: {
@@ -84,44 +81,50 @@ const ProfileScreen = ({ theme, toggleTheme }: ProfileScreenProps) => {
         animate={{ opacity: 1, y: 0 }}
         className="mt-6 rounded-2xl glass p-6"
       >
-        {/* Avatar */}
         <div className="flex flex-col items-center">
           <div className="relative">
-            <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center ring-4 ring-primary/20">
-              <span className="text-3xl font-bold text-muted-foreground">
-                {name ? name.charAt(0).toUpperCase() : "?"}
-              </span>
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-muted ring-4 ring-primary/20">
+              <span className="text-3xl font-bold text-muted-foreground">{name ? name.charAt(0).toUpperCase() : "?"}</span>
             </div>
           </div>
           <h2 className="mt-3 text-lg font-bold text-foreground">{name || "Your Name"}</h2>
         </div>
 
-        {/* Name Input */}
+        <div className="mt-5 rounded-xl border border-border bg-muted/30 p-4">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">My English level</p>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <p className="text-[15px] font-semibold text-foreground">{englishLevel || "Not selected"}</p>
+            <button
+              type="button"
+              onClick={onEditEnglishLevel}
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-muted"
+            >
+              <Pencil size={14} />
+              Edit
+            </button>
+          </div>
+        </div>
+
         <div className="mt-5">
           <label className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Name</label>
           <input
             type="text"
             value={name}
-            // Keep local state synced with user typing before sending on Save click.
             onChange={(e) => setName(e.target.value)}
             placeholder="Enter your name"
-            className="mt-1.5 w-full rounded-xl bg-muted/50 border border-border px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+            className="mt-1.5 w-full rounded-xl border border-border bg-muted/50 px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
 
-        {/* About Me */}
         <div className="mt-5">
           <label className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">About Me</label>
-          <p className="mt-1 text-[13px] text-muted-foreground">
-            Describe your profession, interests, and goals to personalize content.
-          </p>
+          <p className="mt-1 text-[13px] text-muted-foreground">Describe your profession, interests, and goals to personalize content.</p>
           <textarea
             value={bio}
-            // Keep local state synced with user typing before sending on Save click.
             onChange={(e) => setBio(e.target.value)}
             rows={5}
             placeholder="e.g. I'm a software engineer interested in cloud infrastructure…"
-            className="mt-2 w-full resize-none rounded-xl bg-muted/50 border border-border px-4 py-3 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+            className="mt-2 w-full resize-none rounded-xl border border-border bg-muted/50 px-4 py-3 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
 
