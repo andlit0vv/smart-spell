@@ -8,12 +8,34 @@ type Level = (typeof LEVELS)[number];
 
 interface EnglishLevelModalProps {
   onComplete: (levelRange: string) => Promise<void>;
+  title?: string;
+  description?: string;
+  confirmLabel?: string;
+  initialLevel?: string;
 }
 
 const isAdjacent = (a: Level, b: Level) => Math.abs(LEVELS.indexOf(a) - LEVELS.indexOf(b)) === 1;
 
-const EnglishLevelModal = ({ onComplete }: EnglishLevelModalProps) => {
-  const [selected, setSelected] = useState<Level[]>([]);
+const parseInitialSelection = (initialLevel?: string): Level[] => {
+  if (!initialLevel) return [];
+  const parts = initialLevel
+    .split("-")
+    .map((item) => item.trim())
+    .filter((item): item is Level => LEVELS.includes(item as Level));
+
+  if (parts.length === 1) return [parts[0]];
+  if (parts.length === 2 && isAdjacent(parts[0], parts[1])) return [parts[0], parts[1]];
+  return [];
+};
+
+const EnglishLevelModal = ({
+  onComplete,
+  title = "Choose your English level",
+  description = "Pick one level or two neighboring levels.",
+  confirmLabel = "Start",
+  initialLevel,
+}: EnglishLevelModalProps) => {
+  const [selected, setSelected] = useState<Level[]>(() => parseInitialSelection(initialLevel));
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
@@ -56,12 +78,10 @@ const EnglishLevelModal = ({ onComplete }: EnglishLevelModalProps) => {
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-md rounded-2xl glass-modal-strong bg-background/90 dark:bg-background/95 p-5"
+        className="w-full max-w-md rounded-2xl glass-modal-strong bg-background/90 p-5 dark:bg-background/95"
       >
-        <h2 className="text-center text-xl font-bold text-foreground">Choose your English level</h2>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
-          Pick one level or two neighboring levels.
-        </p>
+        <h2 className="text-center text-xl font-bold text-foreground">{title}</h2>
+        <p className="mt-2 text-center text-sm text-muted-foreground">{description}</p>
 
         <Carousel opts={{ align: "center" }} className="mt-5">
           <CarouselContent>
@@ -97,7 +117,7 @@ const EnglishLevelModal = ({ onComplete }: EnglishLevelModalProps) => {
           onClick={handleContinue}
           className="mt-4 w-full rounded-xl bg-primary btn-primary-glow py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
         >
-          {isSaving ? "Saving..." : "Start"}
+          {isSaving ? "Saving..." : confirmLabel}
         </button>
       </motion.div>
     </div>

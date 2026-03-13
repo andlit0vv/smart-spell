@@ -33,7 +33,16 @@ def save_profile():
     if 'bio' in data:
         CURRENT_PROFILE['bio'] = (data.get('bio') or '').strip()
     if 'englishLevel' in data:
-        CURRENT_PROFILE['englishLevel'] = (data.get('englishLevel') or '').strip()
+        incoming_level = (data.get('englishLevel') or '').strip()
+        force_update_level = bool(data.get('forceUpdateEnglishLevel', False))
+
+        if CURRENT_PROFILE['englishLevel'] and incoming_level and not force_update_level:
+            return jsonify({
+                'error': 'englishLevel is already set. Use forceUpdateEnglishLevel to change it.',
+                'profile': CURRENT_PROFILE,
+            }), 409
+
+        CURRENT_PROFILE['englishLevel'] = incoming_level
 
     print(
         "[Profile] Saved profile: "
