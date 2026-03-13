@@ -378,7 +378,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
                           onClick={handleDictionaryAction}
                           disabled={dictionaryLoading}
                           className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60 ${
-                            analysisCard.isInDictionary ? "bg-red-500" : "bg-orange-500"
+                            analysisCard.isInDictionary ? "bg-red-500" : "bg-primary"
                           }`}
                         >
                           {dictionaryLoading

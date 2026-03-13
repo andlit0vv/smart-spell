@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --background: 38 70% 97%;
+    --background: 210 60% 97%;
     --foreground: 220 24% 12%;
 
     --card: 0 0% 100% / 0.65;
@@ -16,45 +16,45 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 20% 14%;
 
-    --primary: 37 91% 55%;
+    --primary: 212 92% 52%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 30 90% 72%;
-    --secondary-foreground: 30 50% 20%;
+    --secondary: 211 88% 78%;
+    --secondary-foreground: 214 56% 22%;
 
     --muted: 220 14% 95%;
     --muted-foreground: 222 10% 42%;
 
-    --accent: 37 91% 94%;
-    --accent-foreground: 37 80% 35%;
+    --accent: 210 90% 94%;
+    --accent-foreground: 214 82% 34%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 220 14% 82% / 0.65;
     --input: 220 14% 88%;
-    --ring: 37 91% 55%;
+    --ring: 212 92% 52%;
 
     --radius: 1.125rem;
 
-    --card-selected: 37 91% 96%;
-    --card-selected-border: 37 80% 65%;
+    --card-selected: 210 92% 96%;
+    --card-selected-border: 212 86% 68%;
 
-    --domain-it: 37 80% 92%;
-    --domain-it-foreground: 37 80% 35%;
+    --domain-it: 210 80% 92%;
+    --domain-it-foreground: 214 80% 35%;
     --domain-medicine: 340 70% 94%;
     --domain-medicine-foreground: 340 70% 40%;
     --domain-general: 160 50% 93%;
     --domain-general-foreground: 160 50% 30%;
 
-    --nav-active: 37 91% 55%;
+    --nav-active: 212 92% 52%;
     --nav-inactive: 220 9% 44%;
 
     --glass-bg: 0 0% 100% / 0.72;
     --glass-strong-bg: 0 0% 100% / 0.88;
     --glass-border: 220 16% 60% / 0.3;
     --glass-blur: 16px;
-    --glass-shadow: 0 8px 28px rgba(214, 147, 74, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    --glass-shadow: 0 8px 28px rgba(45, 129, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 
     --nav-glass: 0 0% 100% / 0.78;
   }
@@ -70,36 +70,36 @@
     --popover: 225 12% 12%;
     --popover-foreground: 0 0% 92%;
 
-    --primary: 30 100% 50%;
+    --primary: 213 94% 62%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 30 80% 40%;
-    --secondary-foreground: 30 100% 90%;
+    --secondary: 214 62% 36%;
+    --secondary-foreground: 210 100% 92%;
 
     --muted: 225 10% 16%;
     --muted-foreground: 222 15% 72%;
 
-    --accent: 30 100% 15%;
-    --accent-foreground: 30 100% 70%;
+    --accent: 215 62% 17%;
+    --accent-foreground: 209 94% 76%;
 
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 0 0% 100% / 0.08;
     --input: 225 10% 20%;
-    --ring: 30 100% 50%;
+    --ring: 213 94% 62%;
 
-    --card-selected: 30 60% 15%;
-    --card-selected-border: 30 80% 45%;
+    --card-selected: 214 58% 16%;
+    --card-selected-border: 213 78% 56%;
 
-    --domain-it: 30 40% 18%;
-    --domain-it-foreground: 30 80% 72%;
+    --domain-it: 215 44% 18%;
+    --domain-it-foreground: 210 86% 72%;
     --domain-medicine: 340 40% 18%;
     --domain-medicine-foreground: 340 60% 72%;
     --domain-general: 160 30% 16%;
     --domain-general-foreground: 160 40% 68%;
 
-    --nav-active: 30 100% 50%;
+    --nav-active: 213 94% 62%;
     --nav-inactive: 220 8% 52%;
 
     --glass-bg: 0 0% 100% / 0.04;
@@ -196,21 +196,21 @@
 
   .app-gradient-bg {
     background:
-      radial-gradient(780px circle at 18% 0%, rgba(255, 143, 28, 0.26), transparent 42%),
-      radial-gradient(640px circle at 88% 84%, rgba(255, 145, 22, 0.2), transparent 48%),
-      linear-gradient(180deg, #fffaf2 0%, #fff4e5 100%);
+      radial-gradient(780px circle at 18% 0%, rgba(65, 156, 255, 0.26), transparent 42%),
+      radial-gradient(640px circle at 88% 84%, rgba(73, 130, 255, 0.2), transparent 48%),
+      linear-gradient(180deg, #f5f9ff 0%, #ebf3ff 100%);
   }
 
   .dark .app-gradient-bg {
     background:
-      radial-gradient(800px circle at 20% 0%, rgba(255, 120, 0, 0.35), transparent 40%),
-      radial-gradient(700px circle at 90% 80%, rgba(255, 120, 0, 0.25), transparent 45%),
+      radial-gradient(800px circle at 20% 0%, rgba(45, 125, 255, 0.35), transparent 40%),
+      radial-gradient(700px circle at 90% 80%, rgba(56, 110, 255, 0.25), transparent 45%),
       linear-gradient(180deg, #0b0f16 0%, #070a10 100%);
   }
 
   .btn-primary-glow {
-    background: linear-gradient(180deg, #ff8a00, #ff6a00);
-    box-shadow: 0 8px 25px rgba(255, 120, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    background: linear-gradient(180deg, #3f98ff, #2b6fff);
+    box-shadow: 0 8px 25px rgba(45, 120, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
     border-radius: 14px;
   }
 
@@ -220,7 +220,7 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-radius: 14px;
-    box-shadow: 0 8px 28px rgba(214, 147, 74, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    box-shadow: 0 8px 28px rgba(45, 120, 255, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   }
 
 
