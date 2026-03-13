@@ -200,7 +200,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
         )}
       </div>
 
-      <div className="mb-3 rounded-2xl glass p-5">
+      <div className="mb-3 rounded-2xl glass-dialogue p-5">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Situation</p>
           <div className="flex items-center gap-2">
@@ -226,7 +226,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
         />
       </div>
 
-      <div className="mb-4 rounded-2xl glass p-5">
+      <div className="mb-4 rounded-2xl glass-dialogue p-5">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Question</p>
           <button
@@ -249,7 +249,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
             onChange={(e) => setAnswer(e.target.value)}
             placeholder="Write your answer..."
             rows={4}
-            className="w-full resize-none rounded-2xl glass px-4 py-3 pr-12 text-[14px] text-foreground"
+            className="w-full resize-none rounded-2xl glass-dialogue px-4 py-3 pr-12 text-[14px] text-foreground"
           />
           <button
             onClick={checkAnswer}
@@ -271,7 +271,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl glass p-4">
+      <div className="mt-4 rounded-2xl glass-dialogue p-4">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">Feedback</p>
         <p className="text-sm text-foreground">{feedback.message || "Submit your answer to get feedback."}</p>
         {feedback.correction && <p className="mt-2 text-sm text-muted-foreground">Correction: {feedback.correction}</p>}
@@ -287,7 +287,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={restartPractice}
-            className="flex items-center justify-center gap-2 rounded-xl glass px-4 py-3 text-sm font-semibold"
+            className="flex items-center justify-center gap-2 rounded-xl glass-dialogue px-4 py-3 text-sm font-semibold"
           >
             <RotateCcw size={15} /> Start Over
           </button>

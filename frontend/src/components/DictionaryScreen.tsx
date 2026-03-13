@@ -40,6 +40,11 @@ const PRESET_CATEGORY_COLORS: Record<string, string> = {
   medicine: "#22c55e",
 };
 
+const STORAGE_KEYS = {
+  categories: "dictionary:custom-categories",
+  assignments: "dictionary:word-category-assignments",
+};
+
 const createRandomColor = () => `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")}`;
 
 const hexToRgba = (hexColor: string, alpha: number) => {
@@ -72,6 +77,24 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [filterGroup, setFilterGroup] = useState<"all" | "topic">("all");
   const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
   const [newCategoryName, setNewCategoryName] = useState("");
+
+  useEffect(() => {
+    try {
+      const storedCategories = sessionStorage.getItem(STORAGE_KEYS.categories);
+      if (storedCategories) {
+        const parsed = JSON.parse(storedCategories) as Record<string, WordCategory>;
+        setCategoriesById(parsed);
+      }
+
+      const storedAssignments = sessionStorage.getItem(STORAGE_KEYS.assignments);
+      if (storedAssignments) {
+        const parsed = JSON.parse(storedAssignments) as Record<string, string[]>;
+        setWordCategoryIds(parsed);
+      }
+    } catch (storageError) {
+      console.error("[Dictionary] Failed to restore session state", storageError);
+    }
+  }, []);
 
   useEffect(() => {
     const loadDictionary = async () => {
@@ -125,6 +148,14 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     });
     setWordCategoryIds((prev) => ({ ...assignments, ...prev }));
   }, [words]);
+
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(categoriesById));
+  }, [categoriesById]);
+
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEYS.assignments, JSON.stringify(wordCategoryIds));
+  }, [wordCategoryIds]);
 
   const allCategories = useMemo(() => Object.values(categoriesById), [categoriesById]);
 
@@ -292,6 +323,19 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
         </div>
 
         <div className="mt-4 flex flex-col gap-2.5">
+          {selected.size > 0 && (
+            <div className="mb-1 grid grid-cols-2 gap-3 rounded-2xl glass p-3">
+              <motion.button whileTap={{ scale: 0.95 }} onClick={handleMarkLearned} className="flex items-center justify-center gap-2 rounded-xl btn-secondary-glass px-4 py-2.5 text-[14px] font-semibold text-foreground">
+                <CheckCircle2 size={16} />
+                Mark as Learned
+              </motion.button>
+              <motion.button whileTap={{ scale: 0.95 }} onClick={() => setLearningMode("chooser")} className="flex items-center justify-center gap-2 rounded-xl bg-primary btn-primary-glow px-4 py-2.5 text-[14px] font-semibold text-primary-foreground shadow-lg shadow-primary/25">
+                <Sparkles size={16} />
+                Learn Words
+              </motion.button>
+            </div>
+          )}
+
           {filteredWords.map((w) => (
             <VocabCard
               key={w.word}
@@ -356,27 +400,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
                 })}
               </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {selected.size > 0 && (
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 20, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 28 }}
-            className="fixed bottom-[72px] left-0 right-0 z-40 flex justify-center gap-3 px-5 pb-3"
-          >
-            <motion.button whileTap={{ scale: 0.95 }} onClick={handleMarkLearned} className="flex items-center gap-2 rounded-full glass btn-secondary-glass px-6 py-3 text-[14px] font-semibold text-foreground">
-              <CheckCircle2 size={16} />
-              Mark as Learned
-            </motion.button>
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => setLearningMode("chooser")} className="flex items-center gap-2 rounded-full bg-primary btn-primary-glow px-6 py-3 text-[14px] font-semibold text-primary-foreground shadow-lg shadow-primary/25">
-              <Sparkles size={16} />
-              Learn Words
-            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>
