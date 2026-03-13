@@ -45,13 +45,18 @@ Additional rules:
 - Provide a short English definition (max 10 words, one sentence).
 - If term has multiple common meanings, include them concisely in one definition.
 
-2. Examples
+2. Russian translation
+- Provide a short Russian translation in field "translationRu".
+- It must be strictly shorter than the English definition.
+- Keep it concise (usually 1-3 words) and natural.
+
+3. Examples
 - Generate natural English sentences demonstrating real usage.
 - At least 2 examples.
 - If term has multiple meanings, provide at least one example per meaning.
 - Sentences must be clear and realistic.
 
-3. Output format
+4. Output format
 - Return ONLY valid JSON. No explanations.
 
 JSON structure:
@@ -59,6 +64,7 @@ JSON structure:
   "term": "<input word or phrase>",
   "relevance": <0-10>,
   "definition": "<short definition in English>",
+  "translationRu": "<краткий перевод на русский>",
   "examples": [
     "<example sentence>",
     "<example sentence>"
