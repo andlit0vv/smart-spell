@@ -1,18 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { ArrowRight, Languages, BarChart3, FileText, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface TranslationScreenProps {
   theme: "light" | "dark";
   toggleTheme: () => void;
-}
-
-interface InlineTranslation {
-  text: string;
-  translation: string;
-  x: number;
-  y: number;
 }
 
 interface WordResult {
@@ -29,9 +23,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [inlineTranslation, setInlineTranslation] = useState<InlineTranslation | null>(null);
-  const [inlineTranslationLoading, setInlineTranslationLoading] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const handleSubmit = async () => {
     if (!word.trim()) return;
@@ -65,7 +56,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
         definition: analysis.definition,
         relevance: typeof analysis.relevance === "number" ? analysis.relevance : 0,
         examples: Array.isArray(analysis.examples) ? analysis.examples : [],
-        translationRu: typeof payload.translationRu === "string" ? payload.translationRu : "",
+        translationRu: typeof analysis.translationRu === "string" ? analysis.translationRu : "",
       });
       setConnectionMessage("Analysis received from backend");
     } catch (error) {
@@ -79,64 +70,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   const handleSkip = () => {
     setResult(null);
     setWord("");
-    setInlineTranslation(null);
-  };
-
-  const requestInlineTranslation = async (selectionText: string, rect: DOMRect) => {
-    const normalizedText = selectionText.replace(/\s+/g, " ").trim();
-    if (!normalizedText) return;
-
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    const fallbackX = rect.left + rect.width / 2;
-    const fallbackY = rect.top;
-
-    setInlineTranslationLoading(true);
-
-    try {
-      const response = await fetch("/api/translate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: normalizedText }),
-      });
-
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || "Translation request failed");
-      }
-
-      const translation = typeof payload.translationRu === "string" ? payload.translationRu : "";
-      setInlineTranslation({
-        text: normalizedText,
-        translation: translation || "Перевод не найден",
-        x: (containerRect ? fallbackX - containerRect.left : fallbackX) - 10,
-        y: (containerRect ? fallbackY - containerRect.top : fallbackY) - 10,
-      });
-    } catch {
-      setInlineTranslation({
-        text: normalizedText,
-        translation: "Ошибка перевода",
-        x: (containerRect ? fallbackX - containerRect.left : fallbackX) - 10,
-        y: (containerRect ? fallbackY - containerRect.top : fallbackY) - 10,
-      });
-    } finally {
-      setInlineTranslationLoading(false);
-    }
-  };
-
-  const handleDefinitionSelection = () => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) return;
-
-    const selectedText = selection.toString();
-    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-    const rect = range?.getBoundingClientRect();
-
-    if (!selectedText.trim() || !rect || rect.width === 0) return;
-
-    void requestInlineTranslation(selectedText, rect);
-    selection.removeAllRanges();
   };
 
   const handleAdd = () => {
@@ -175,20 +108,8 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
     void saveWord();
   };
 
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!(event.target instanceof Node)) return;
-      if (!containerRef.current?.contains(event.target)) {
-        setInlineTranslation(null);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, []);
-
   return (
-    <div ref={containerRef} className="relative mx-auto max-w-lg px-5 pb-36 pt-6">
+    <div className="relative mx-auto max-w-lg px-5 pb-36 pt-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Translation</h1>
@@ -234,25 +155,26 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
             className="mt-6 rounded-2xl glass p-5"
           >
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-3">
               <h2 className="text-xl font-bold text-foreground">{result.word}</h2>
-              <span className="text-sm font-medium text-zinc-400">
-                {result.translationRu || "—"}
-              </span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="rounded-lg border border-border/60 bg-background/40 px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:text-foreground">
+                    Show translation
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-fit max-w-[220px] rounded-xl border-border/60 px-3 py-2 text-sm">
+                  <p className="font-semibold text-foreground">{result.translationRu || "Перевод не найден"}</p>
+                </PopoverContent>
+              </Popover>
             </div>
 
-            <p
-              className="mt-3 select-text text-[14px] leading-relaxed text-foreground/80"
-              onMouseUp={handleDefinitionSelection}
-              onTouchEnd={handleDefinitionSelection}
-            >
-              {result.definition}
-            </p>
+            <p className="mt-3 text-[14px] leading-relaxed text-foreground/80">{result.definition}</p>
 
             <div className="mt-4 flex items-center gap-2">
               <BarChart3 size={14} className="text-primary" />
               <span className="text-[13px] font-medium text-muted-foreground">Relevance</span>
-              <div className="flex-1 h-1.5 rounded-full bg-muted ml-1">
+              <div className="ml-1 h-1.5 flex-1 rounded-full bg-muted">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${result.relevance * 10}%` }}
@@ -264,11 +186,11 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
             </div>
 
             <div className="mt-4 rounded-xl bg-muted/50 p-3.5">
-              <div className="flex items-center gap-1.5 mb-1.5">
+              <div className="mb-1.5 flex items-center gap-1.5">
                 <FileText size={12} className="text-muted-foreground" />
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Example</span>
               </div>
-              <ul className="list-disc pl-4 space-y-1 text-[13px] italic leading-relaxed text-foreground/75">
+              <ul className="list-disc space-y-1 pl-4 text-[13px] italic leading-relaxed text-foreground/75">
                 {result.examples.map((example, index) => (
                   <li key={`${result.word}-${index}`}>{example}</li>
                 ))}
@@ -299,27 +221,9 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
             className="mt-10 flex flex-col items-center justify-center py-12 text-center"
           >
             <div className="rounded-2xl glass p-5">
-              <Languages size={36} className="text-muted-foreground/40 mx-auto" />
+              <Languages size={36} className="mx-auto text-muted-foreground/40" />
               <p className="mt-3 text-sm text-muted-foreground">Enter a word above to get started</p>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {(inlineTranslationLoading || inlineTranslation) && (
-          <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.98 }}
-            className="pointer-events-none absolute z-30 max-w-[280px] rounded-xl border border-border/60 bg-background/95 px-2.5 py-1.5 text-xs text-foreground shadow-lg"
-            style={{
-              left: inlineTranslation ? `${inlineTranslation.x}px` : "50%",
-              top: inlineTranslation ? `${Math.max(inlineTranslation.y - 44, 12)}px` : "12px",
-              transform: "translateX(-50%)",
-            }}
-          >
-            {inlineTranslationLoading ? "Перевод..." : inlineTranslation?.translation}
           </motion.div>
         )}
       </AnimatePresence>

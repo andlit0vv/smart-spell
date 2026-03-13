@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, RefreshCw, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
 interface Props {
@@ -187,7 +188,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
         definition: analysis.definition,
         relevance: typeof analysis.relevance === "number" ? analysis.relevance : 0,
         examples: Array.isArray(analysis.examples) ? analysis.examples : [],
-        translationRu: typeof payload.translationRu === "string" ? payload.translationRu : "",
+        translationRu: typeof analysis.translationRu === "string" ? analysis.translationRu : "",
         isInDictionary,
       });
     } catch (requestError) {
@@ -340,7 +341,16 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
                         {analysisLoading ? "Analyzing..." : analysisCard?.word || "Selection details"}
                       </p>
                       {!analysisLoading && analysisCard?.translationRu && (
-                        <p className="text-xs text-muted-foreground">{analysisCard.translationRu}</p>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="mt-1 rounded-md border border-border/60 bg-background/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition hover:text-foreground">
+                              Show translation
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" className="w-fit max-w-[180px] rounded-lg border-border/60 px-2.5 py-1.5 text-xs">
+                            <p className="font-semibold text-foreground">{analysisCard.translationRu}</p>
+                          </PopoverContent>
+                        </Popover>
                       )}
                     </div>
                     <button
