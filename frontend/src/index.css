@@ -153,6 +153,22 @@
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
+
+  .glass-dialogue {
+    background: hsl(var(--glass-bg) / 0.58);
+    border: 1px solid hsl(var(--glass-border));
+    backdrop-filter: blur(calc(var(--glass-blur) + 2px));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 2px));
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    transition: all 0.25s ease;
+  }
+
+  .dark .glass-dialogue {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
   .glass-nav {
     background: hsl(var(--nav-glass));
     border-top: 1px solid rgba(255, 255, 255, 0.05);

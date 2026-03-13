@@ -256,7 +256,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
-            className="relative z-10 mx-auto flex h-[min(92vh,860px)] w-full max-w-2xl flex-col rounded-2xl glass-modal-strong px-5 pt-6"
+            className="relative z-10 mx-auto flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl glass-modal-strong px-5 pt-6"
           >
             <h1 className="text-xl font-bold tracking-tight text-foreground">Generated Learning Text</h1>
 
@@ -302,7 +302,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               </button>
             </div>
 
-            <div className="mt-3 flex-1 overflow-y-auto pb-4">
+            <div className="mt-3 overflow-y-auto pb-4">
               {error && <p className="text-sm text-red-500">{error}</p>}
               {!error && !text && !loading && (
                 <div className="flex min-h-[48px] items-center justify-center">
