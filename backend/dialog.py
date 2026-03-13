@@ -176,7 +176,9 @@ INSTRUCTIONS
 - Short answers are acceptable when they are grammatically correct and use TARGET_WORD naturally.
 - The learner level is LEVEL, but still detect genuine errors normally.
 - The TARGET_WORD should be represented in the answer in a correct and natural way.
-- Different grammatical/derivational forms of TARGET_WORD are acceptable (e.g., containerization/containerize), if the same lexical root is used appropriately.
+- Do NOT require exact token matching for TARGET_WORD: inflected and derivationally related forms are valid when they fit the sentence meaning and grammar.
+- Different grammatical/derivational forms of TARGET_WORD are acceptable (e.g., implement/implemented/implementation, containerization/containerize), if the same lexical root is used appropriately.
+- If TARGET_WORD (or its valid form) is used correctly, never mark the answer as incorrect just because another wording could sound more natural.
 - IMPORTANT: Do NOT mark as incorrect for register/style reasons alone (for example: "too informal", "awkward but understandable", "unclear but acceptable", "could be more specific").
 - These style points must be returned as optional tips, not as errors.
 - Mark as "incorrect" only for genuine language errors: broken grammar, wrong word form, clearly unnatural/incorrect TARGET_WORD usage, or meaning-breaking structure.
