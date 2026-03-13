@@ -74,7 +74,7 @@ const EnglishLevelModal = ({ onComplete }: EnglishLevelModalProps) => {
                     onClick={() => toggleLevel(level)}
                     className={`h-24 w-full rounded-xl border text-lg font-bold transition-colors ${
                       isActive
-                        ? "border-orange-500 bg-orange-500 text-white"
+                        ? "border-primary bg-primary text-primary-foreground"
                         : "btn-secondary-glass border-border bg-muted/60 text-foreground"
                     }`}
                   >
