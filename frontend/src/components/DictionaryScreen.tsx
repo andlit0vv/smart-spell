@@ -27,14 +27,7 @@ interface DictionaryScreenProps {
 
 type LearningMode = null | "chooser" | "text" | "dialogue";
 
-const initialWords: WordData[] = [
-  { word: "Negotiate", domain: "General", relevance: 7, definition: "To discuss something in order to reach an agreement." },
-  { word: "Asynchronous", domain: "IT", relevance: 9, definition: "A communication method where operations occur independently, without waiting for others to finish." },
-  { word: "Containerization", domain: "IT", relevance: 8, definition: "Packaging software with its dependencies into isolated, portable containers for deployment." },
-  { word: "Protocol", domain: "General/IT", relevance: 7, definition: "A formal set of rules governing data transmission between systems or networks." },
-  { word: "Myocardial", domain: "Medicine", relevance: 6, definition: "Relating to the muscular tissue of the heart, the myocardium." },
-  { word: "Deployment", domain: "IT", relevance: 8, definition: "The process of releasing software to a production environment for end users." },
-];
+const initialWords: WordData[] = [];
 
 const createCategoryId = (name: string, group: WordCategory["group"]) =>
   `${group}:${name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
