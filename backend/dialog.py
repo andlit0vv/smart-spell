@@ -41,9 +41,10 @@ Generate:
 1) A realistic situation related to the user's professional or personal context.
 2) A question based on that situation.
 
-The learner must answer the question using TARGET_WORDS.
+CONTEXT:
+The learner will read the situation and answer your question using TARGET_WORDS.
 
-INSTRUCTIONS
+INSTRUCTIONS:
 
 1. Carefully analyze USER_DESCRIPTION to understand the user's profession, interests, and typical environment.
 2. Generate a realistic situation connected to that context (work meeting, interview, presentation, discussion, negotiation, technical problem, etc.).
@@ -55,7 +56,7 @@ INSTRUCTIONS
 8. Do NOT include target words inside the question.
 9. The question must logically follow the situation.
 10. The question must encourage explanation, description, or justification.
-11. Language must match LEVEL.
+11. Language must match user's English level - {user_level}.
 12. The situation should be 1–2 sentences.
 13. The question should be 1 sentence.
 14. The situation must be no longer than 120 characters (including spaces and punctuation).
@@ -85,13 +86,63 @@ TASK
 Generate one question (1 sentence) that logically follows the situation and encourages explanation.
 The learner should be able to naturally use one or more target words in the answer.
 Do not include any target word directly inside the question.
-Use language suitable for LEVEL.
+Use language suitable for user's English level - {user_level}.
 If PREVIOUS_QUESTION is provided, create a new question with a different angle and wording while staying in the same situation.
 The question must be no longer than 100 characters (including spaces and punctuation).
 
 OUTPUT FORMAT (JSON)
 {{
   "question": "..."
+}}"""
+
+EXAMPLES_PROMPT = """EXAMPLES(GENERATING SITUATION + QUESTION):
+
+Example 1:
+
+Input:
+{{
+  "user_description": "Software developer working remotely on web applications",
+  "target_words": ["debug", "implement", "efficient", "workflow", "optimize"],
+  "focus_word": "debug",
+  "english_level": "intermediate",
+  "previous_situations": []
+}}
+
+Output:
+{{
+  "situation": "Your app crashes when users upload large files during peak hours.",
+  "question": "How would you identify and fix the issue?"
+}}
+
+Example 2:
+Input:
+{{
+  "user_description": "Marketing manager launching digital campaigns",
+  "target_words": ["engage", "campaign", "audience", "metrics", "convert"],
+  "focus_word": "engage",
+  "english_level": "upper-intermediate",
+  "previous_situations": ["Team missed a campaign deadline due to poor planning."]
+}}
+
+Output:
+{{
+  "situation": "Your new social media campaign isn't reaching younger audiences effectively.",
+  "question": "What strategies would you try to improve results?"
+}}
+
+Example 3:
+Input:
+{{
+  "user_description": "University student planning a budget trip abroad",
+  "target_words": ["budget", "accommodation", "itinerary", "flexible", "prioritize"],
+  "focus_word": "flexible",
+  "english_level": "pre-intermediate",
+  "previous_situations": []
+}}
+Output:
+{{
+  "situation": "You're planning a 2-week trip but your budget is limited.",
+  "question": "How would you plan to make the most of your trip?"
 }}"""
 
 CHECK_PROMPT = """You are an English language tutor reviewing a learner's sentence.
