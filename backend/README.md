@@ -75,6 +75,11 @@ curl http://localhost:5000/api/profile -H "X-Telegram-Id: 2000000002"
 ```
 
 
+## Важно: `db.<project-ref>.supabase.co` не должен открываться в браузере
+`db....supabase.co` — это **Postgres endpoint**, а не HTTP-сайт.
+Поэтому в Chrome/Edge вы увидите `ERR_NAME_NOT_RESOLVED` или пустую страницу, и это не проверка работоспособности БД.
+Проверять нужно через `psql`/backend-подключение, а не через браузер.
+
 ## Частая ошибка 500: `could not translate host name ...supabase.co`
 Если в логе Flask видно `psycopg2.OperationalError: could not translate host name`, это не ошибка бизнес-логики backend — это DNS/сеть до Postgres host.
 
