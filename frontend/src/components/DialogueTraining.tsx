@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, RotateCcw, Send, RefreshCw, GraduationCap, Pencil } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface WordInfo {
   word: string;
@@ -59,7 +60,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
 
   const loadProfile = async () => {
     try {
-      const response = await fetch("/api/profile");
+      const response = await apiFetch("/api/profile");
       const payload = await response.json();
       if (response.ok && payload.profile) {
         if (payload.profile.englishLevel) setLevel(payload.profile.englishLevel);
@@ -73,7 +74,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
   const generateScenario = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/dialog/generate", {
+      const response = await apiFetch("/api/dialog/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -107,7 +108,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
     if (!force && situation === initialSituation) return;
     setQuestionLoading(true);
     try {
-      const response = await fetch("/api/dialog/question", {
+      const response = await apiFetch("/api/dialog/question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ situation, target_words: targetWords, level, previous_question: question }),
@@ -149,7 +150,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
     if (!answer.trim()) return;
     setAnswerLoading(true);
     try {
-      const response = await fetch("/api/dialog/check", {
+      const response = await apiFetch("/api/dialog/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,6 +1,5 @@
 import os
 import re
-import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -12,8 +11,6 @@ from dotenv import load_dotenv
 
 
 CONNECT_TIMEOUT_SECONDS = 8
-CONNECTION_RETRY_ATTEMPTS = 2
-CONNECTION_RETRY_DELAY_SECONDS = 0.25
 
 
 def _load_env_files() -> None:
@@ -69,11 +66,35 @@ def _normalize_database_url(database_url: str) -> str:
     )
 
 
+def _normalize_database_dsn(database_dsn: str) -> str:
+    """Normalize key-value DSN format from Supabase UI (session pooler tab)."""
+    if 'connect_timeout=' not in database_dsn:
+        database_dsn = f'{database_dsn} connect_timeout={CONNECT_TIMEOUT_SECONDS}'.strip()
+
+    if 'sslmode=' not in database_dsn:
+        database_dsn = f'{database_dsn} sslmode=require'.strip()
+
+    return database_dsn
+
+
+def _normalize_database_connection_value(raw_connection_value: str) -> str:
+    """Accept either URL or key-value DSN without changing callers."""
+    if '://' in raw_connection_value:
+        return _normalize_database_url(raw_connection_value)
+    return _normalize_database_dsn(raw_connection_value)
+
+
 def _read_database_urls() -> list[str]:
-    """Build prioritized unique list of DB URLs to try for each request."""
+    """Build prioritized unique list of DB connection strings to try for each request."""
     candidates: list[str] = []
 
-    for env_key in ('DATABASE_URL', 'DATABASE_POOLER_URL'):
+    # Primary flow: Session Pooler first (works better on IPv4-only networks).
+    for env_key in (
+        'DATABASE_POOLER_DSN',
+        'DATABASE_POOLER_URL',
+        'DATABASE_URL',
+        'DATABASE_DIRECT_URL',
+    ):
         value = os.getenv(env_key, '').strip()
         if value:
             candidates.append(value)
@@ -81,7 +102,7 @@ def _read_database_urls() -> list[str]:
     urls: list[str] = []
     seen = set()
     for raw_url in candidates:
-        normalized = _normalize_database_url(raw_url)
+        normalized = _normalize_database_connection_value(raw_url)
         if normalized in seen:
             continue
         seen.add(normalized)
@@ -95,16 +116,19 @@ def get_database_url() -> str:
     urls = _read_database_urls()
     if not urls:
         raise RuntimeError(
-            'No database URL is configured. Set DATABASE_URL and optionally DATABASE_POOLER_URL.'
+            'No database connection is configured. Set DATABASE_POOLER_URL (or DATABASE_POOLER_DSN) and optionally DATABASE_URL.'
         )
     return urls[0]
 
 
 def get_pooler_database_url() -> str | None:
-    pooler_database_url = os.getenv('DATABASE_POOLER_URL', '').strip()
+    pooler_database_url = (
+        os.getenv('DATABASE_POOLER_URL', '').strip()
+        or os.getenv('DATABASE_POOLER_DSN', '').strip()
+    )
     if not pooler_database_url:
         return None
-    return _normalize_database_url(pooler_database_url)
+    return _normalize_database_connection_value(pooler_database_url)
 
 
 def _is_retryable_primary_error(error: psycopg2.OperationalError) -> bool:
@@ -129,7 +153,7 @@ def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
     database_urls = _read_database_urls()
     if not database_urls:
         raise RuntimeError(
-            'No database URL is configured. Set DATABASE_URL and optionally DATABASE_POOLER_URL.'
+            'No database connection is configured. Set DATABASE_POOLER_URL (or DATABASE_POOLER_DSN) and optionally DATABASE_URL.'
         )
 
     primary_database_url = database_urls[0]

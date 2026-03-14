@@ -6,6 +6,7 @@ import ReadScreen from "@/components/ReadScreen";
 import ProfileScreen from "@/components/ProfileScreen";
 import { useTheme } from "@/hooks/useTheme";
 import EnglishLevelModal from "@/components/EnglishLevelModal";
+import { apiFetch } from "@/lib/api";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<TabId>("dictionary");
@@ -17,7 +18,7 @@ const Index = () => {
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const response = await fetch("/api/profile");
+        const response = await apiFetch("/api/profile");
         if (!response.ok) return;
 
         const payload = await response.json();
@@ -36,7 +37,7 @@ const Index = () => {
   }, []);
 
   const handleFirstLevelSelect = async (levelRange: string) => {
-    const response = await fetch("/api/profile", {
+    const response = await apiFetch("/api/profile", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -55,7 +56,7 @@ const Index = () => {
   };
 
   const handleEditLevel = async (levelRange: string) => {
-    const response = await fetch("/api/profile", {
+    const response = await apiFetch("/api/profile", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

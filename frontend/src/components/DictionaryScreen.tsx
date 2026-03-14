@@ -5,6 +5,7 @@ import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
 import DialogueTraining from "./DialogueTraining";
 import ThemeToggle from "./ThemeToggle";
+import { apiFetch } from "@/lib/api";
 
 interface WordData {
   word: string;
@@ -99,7 +100,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   useEffect(() => {
     const loadDictionary = async () => {
       try {
-        const response = await fetch("/api/dictionary");
+        const response = await apiFetch("/api/dictionary");
         const payload = await response.json();
         if (response.ok && Array.isArray(payload.words)) {
           setWords(payload.words);

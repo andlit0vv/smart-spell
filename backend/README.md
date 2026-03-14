@@ -1,14 +1,14 @@
 # Backend + Supabase local setup
 
-## Почему выбран Direct Connection (а не Session Pooler)
-Я выбрал **Direct Connection** как дефолт для этого репозитория, потому что:
-1. Вы уже дали рабочий direct-host/port (`db.tizoot...:5432`) и это можно сразу запустить без дополнительных поисков region-specific pooler host.
-2. Текущий Flask backend открывает короткие подключения на запрос — для локальной проверки этого достаточно.
-3. Для будущего деплоя можно в любой момент подменить только `DATABASE_URL` на Session Pooler (код менять не нужно).
+## Новый рекомендуемый тип подключения
+Теперь backend ориентирован на **Supabase Session Pooler** (как на вашем скриншоте):
+- сначала читается `DATABASE_POOLER_DSN` (формат `user=... password=... host=...`),
+- затем `DATABASE_POOLER_URL`,
+- и только потом direct URL (`DATABASE_URL` / `DATABASE_DIRECT_URL`).
 
-> Если на вашей сети Direct не подключится (часто IPv4-only сети), добавьте Session Pooler URL в `DATABASE_POOLER_URL`: backend автоматически переключится на него, если direct-host не резолвится.
+Это удобнее для локалки и IPv4-сетей.
 
-## Быстрый старт (минимум действий)
+## Быстрый старт
 
 ### 1) Подготовить env
 ```bash
@@ -16,7 +16,12 @@ cd backend
 cp .env.example .env
 ```
 
-`.env.example` уже содержит ваш URL с корректным URL-encoded паролем.
+Откройте `backend/.env` и вставьте строку из Supabase **Connection String → Session pooler** в `DATABASE_POOLER_DSN`.
+
+Пример:
+```env
+DATABASE_POOLER_DSN=user=postgres.<project-ref> password=<your-password> host=aws-1-<region>.pooler.supabase.com port=5432 dbname=postgres
+```
 
 ### 2) Установить зависимости и запустить backend
 ```bash
@@ -29,81 +34,59 @@ python app.py
 
 Backend: `http://localhost:5000`
 
-### 3) Автоматическая регистрация локального тест-пользователя
-Ничего дополнительно делать не нужно: при первом запросе на `/api/profile` пользователь из `.env` создается автоматически.
+### 3) Применить схему БД (если таблиц еще нет)
+```bash
+cd /workspace/smart-spell
+psql "$DATABASE_POOLER_URL" -f database/init_schema.sql
+```
 
-Проверка:
+> Если используете только `DATABASE_POOLER_DSN`, выполните SQL через Supabase SQL Editor (содержимое `database/init_schema.sql`).
+
+## Проверка, что backend живой
+```bash
+curl http://localhost:5000/health
+```
+Ожидается: `{"status":"ok"}`.
+
+## Проверка, что БД подключена и пользователь создается
 ```bash
 curl http://localhost:5000/api/profile
 ```
+Если ответ с полями `user` и `profile` пришёл — backend подключился к БД, и test-user создан/обновлен.
 
-## Симуляция Telegram initData (starter pack)
+## Локальная симуляция Telegram InitData
 
-Сгенерировать локальный "пакет" Telegram-пользователя + initData:
+Сгенерировать локальный initData:
 ```bash
 curl -X POST http://localhost:5000/api/test-user/starter-pack \
   -H "Content-Type: application/json" \
   -d '{"telegramId":1000000001,"username":"local_tester","firstName":"Local"}'
 ```
 
-В ответе будет `initData` и пример заголовков. Можно вызывать endpoint'ы как будто это Telegram WebApp:
+Потом можно обращаться как Telegram WebApp:
 ```bash
 curl http://localhost:5000/api/profile \
   -H "X-Telegram-Init-Data: <initData_from_response>"
 ```
 
-## Проверка profile/dictionary в БД
+## Проверка, что уровень английского реально сохраняется
 ```bash
-# profile save
 curl -X POST http://localhost:5000/api/profile \
   -H "Content-Type: application/json" \
-  -d '{"name":"Local User","bio":"QA run","englishLevel":"B1-B2"}'
+  -d '{"englishLevel":"B1-B2"}'
 
-# add dictionary word
-curl -X POST http://localhost:5000/api/dictionary \
-  -H "Content-Type: application/json" \
-  -d '{"word":"deploy","definition":"release app to server","relevance":8}'
-
-# list dictionary
-curl http://localhost:5000/api/dictionary
+curl http://localhost:5000/api/profile
 ```
+Во втором ответе должно быть `profile.englishLevel = "B1-B2"`.
 
-## Переключение пользователя
-Без изменения `.env`, передайте заголовок:
-```bash
-curl http://localhost:5000/api/profile -H "X-Telegram-Id: 2000000002"
-```
+## Почему на фронте может не появляться окно выбора уровня
+Окно показывается только когда `/api/profile` вернул профиль с пустым `englishLevel`.
+Проверьте:
+1. Backend реально запущен на `:5000`.
+2. Frontend идет через Vite proxy (`/api -> http://127.0.0.1:5000`).
+3. `/api/profile` в браузере/через curl не возвращает 4xx/5xx.
+4. В БД у текущего test-user `english_level` действительно пустой (или сбросьте его).
 
-
-## Важно: `db.<project-ref>.supabase.co` не должен открываться в браузере
-`db....supabase.co` — это **Postgres endpoint**, а не HTTP-сайт.
-Поэтому в Chrome/Edge вы увидите `ERR_NAME_NOT_RESOLVED` или пустую страницу, и это не проверка работоспособности БД.
-Проверять нужно через `psql`/backend-подключение, а не через браузер.
-
-## Частая ошибка 500: `could not translate host name ...supabase.co`
-Если в логе Flask видно `psycopg2.OperationalError: could not translate host name`, это не ошибка бизнес-логики backend — это DNS/сеть до Postgres host.
-
-Что проверить по шагам:
-1. Убедиться, что backend подхватил `.env`:
-   - теперь `backend/db.py` автоматически читает сначала `../.env`, затем `backend/.env`;
-   - если есть оба файла, значения из `backend/.env` имеют приоритет.
-2. Проверить `DATABASE_URL` в `backend/.env` (или в корневом `.env`):
-   - строка должна быть полностью из Supabase, без переносов;
-   - пароль должен быть URL-encoded (в примере уже так).
-3. (Рекомендуется) добавить fallback `DATABASE_POOLER_URL` в `backend/.env`:
-   - backend попробует его автоматически, если direct-host дал ошибку DNS (`could not translate host name`);
-   - пароль тоже должен быть URL-encoded.
-4. Проверить DNS/доступ с вашей машины:
-```bash
-nslookup db.tizootfbwyohpjhkhpdw.supabase.co
-```
-Если имя не резолвится, попробуйте:
-- сменить DNS на 1.1.1.1 / 8.8.8.8;
-- отключить VPN/Proxy (или наоборот включить, если провайдер режет маршрут);
-- использовать Session Pooler URL из Supabase вместо Direct URL.
-
-5. Быстрый health-check backend:
-```bash
-curl "http://localhost:5000/api/profile?telegram_id=1000000001"
-```
-Если вернулся JSON, локальный тест-пользователь создан/обновлён автоматически.
+## Частая ошибка подключения
+Если в логе есть `could not translate host name`, значит проблема сети/DNS до Postgres host.
+В этом случае используйте именно Session Pooler DSN/URL из Supabase.
