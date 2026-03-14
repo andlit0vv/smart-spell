@@ -5,6 +5,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode
 
 from flask import Flask, jsonify, request
+import psycopg2
 
 from db import get_db_cursor
 from dialog import register_dialog_endpoints
@@ -148,6 +149,28 @@ def fetch_user_profile(user_id: int) -> dict[str, str]:
 
 def _json_bad_request(error: Exception):
     return jsonify({'error': str(error)}), 400
+
+
+def _json_db_unavailable(error: Exception):
+    message = str(error)
+    dns_hint = 'could not translate host name' in message
+
+    details = {
+        'error': 'Database is temporarily unavailable.',
+        'details': message,
+    }
+    if dns_hint:
+        details['hint'] = (
+            'Direct Supabase host DNS is not resolvable from current environment. '
+            'Set DATABASE_POOLER_URL in backend/.env and retry.'
+        )
+
+    return jsonify(details), 503
+
+
+@app.errorhandler(psycopg2.OperationalError)
+def handle_db_operational_error(error: psycopg2.OperationalError):
+    return _json_db_unavailable(error)
 
 
 @app.get('/api/profile')

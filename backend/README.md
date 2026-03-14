@@ -6,7 +6,7 @@
 2. Текущий Flask backend открывает короткие подключения на запрос — для локальной проверки этого достаточно.
 3. Для будущего деплоя можно в любой момент подменить только `DATABASE_URL` на Session Pooler (код менять не нужно).
 
-> Если на вашей сети Direct не подключится (часто IPv4-only сети), просто возьмите Session Pooler URL в Supabase и вставьте его в `DATABASE_URL`.
+> Если на вашей сети Direct не подключится (часто IPv4-only сети), добавьте Session Pooler URL в `DATABASE_POOLER_URL`: backend автоматически переключится на него, если direct-host не резолвится.
 
 ## Быстрый старт (минимум действий)
 
@@ -75,6 +75,11 @@ curl http://localhost:5000/api/profile -H "X-Telegram-Id: 2000000002"
 ```
 
 
+## Важно: `db.<project-ref>.supabase.co` не должен открываться в браузере
+`db....supabase.co` — это **Postgres endpoint**, а не HTTP-сайт.
+Поэтому в Chrome/Edge вы увидите `ERR_NAME_NOT_RESOLVED` или пустую страницу, и это не проверка работоспособности БД.
+Проверять нужно через `psql`/backend-подключение, а не через браузер.
+
 ## Частая ошибка 500: `could not translate host name ...supabase.co`
 Если в логе Flask видно `psycopg2.OperationalError: could not translate host name`, это не ошибка бизнес-логики backend — это DNS/сеть до Postgres host.
 
@@ -85,7 +90,10 @@ curl http://localhost:5000/api/profile -H "X-Telegram-Id: 2000000002"
 2. Проверить `DATABASE_URL` в `backend/.env` (или в корневом `.env`):
    - строка должна быть полностью из Supabase, без переносов;
    - пароль должен быть URL-encoded (в примере уже так).
-3. Проверить DNS/доступ с вашей машины:
+3. (Рекомендуется) добавить fallback `DATABASE_POOLER_URL` в `backend/.env`:
+   - backend попробует его автоматически, если direct-host дал ошибку DNS (`could not translate host name`);
+   - пароль тоже должен быть URL-encoded.
+4. Проверить DNS/доступ с вашей машины:
 ```bash
 nslookup db.tizootfbwyohpjhkhpdw.supabase.co
 ```
@@ -94,7 +102,7 @@ nslookup db.tizootfbwyohpjhkhpdw.supabase.co
 - отключить VPN/Proxy (или наоборот включить, если провайдер режет маршрут);
 - использовать Session Pooler URL из Supabase вместо Direct URL.
 
-4. Быстрый health-check backend:
+5. Быстрый health-check backend:
 ```bash
 curl "http://localhost:5000/api/profile?telegram_id=1000000001"
 ```

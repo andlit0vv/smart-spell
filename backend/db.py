@@ -3,7 +3,7 @@ import re
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
-from urllib.parse import quote, unquote
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -34,16 +34,49 @@ def _encode_password_in_postgres_url(database_url: str) -> str:
     return f'{prefix}{username}:{encoded_password}@{host_part}/{db_part}'
 
 
+def _ensure_sslmode_in_postgres_url(database_url: str) -> str:
+    """Supabase requires TLS; keep explicit sslmode in URL."""
+    parsed = urlsplit(database_url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+
+    if 'sslmode' in query:
+        return database_url
+
+    query['sslmode'] = 'require'
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
+
+
+def _normalize_database_url(database_url: str) -> str:
+    return _ensure_sslmode_in_postgres_url(_encode_password_in_postgres_url(database_url))
+
+
 def get_database_url() -> str:
     database_url = os.getenv('DATABASE_URL', '').strip()
     if not database_url:
         raise RuntimeError('DATABASE_URL is not set. Please configure Supabase/Postgres connection string.')
-    return _encode_password_in_postgres_url(database_url)
+    return _normalize_database_url(database_url)
+
+
+def get_pooler_database_url() -> str | None:
+    pooler_database_url = os.getenv('DATABASE_POOLER_URL', '').strip()
+    if not pooler_database_url:
+        return None
+    return _normalize_database_url(pooler_database_url)
 
 
 @contextmanager
 def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
-    connection = psycopg2.connect(get_database_url(), cursor_factory=RealDictCursor)
+    primary_database_url = get_database_url()
+    pooler_database_url = get_pooler_database_url()
+
+    try:
+        connection = psycopg2.connect(primary_database_url, cursor_factory=RealDictCursor)
+    except psycopg2.OperationalError as exc:
+        should_try_pooler = pooler_database_url and 'could not translate host name' in str(exc)
+        if not should_try_pooler:
+            raise
+        connection = psycopg2.connect(pooler_database_url, cursor_factory=RealDictCursor)
+
     try:
         yield connection
     finally:
