@@ -73,3 +73,29 @@ curl http://localhost:5000/api/dictionary
 ```bash
 curl http://localhost:5000/api/profile -H "X-Telegram-Id: 2000000002"
 ```
+
+
+## Частая ошибка 500: `could not translate host name ...supabase.co`
+Если в логе Flask видно `psycopg2.OperationalError: could not translate host name`, это не ошибка бизнес-логики backend — это DNS/сеть до Postgres host.
+
+Что проверить по шагам:
+1. Убедиться, что backend подхватил `.env`:
+   - теперь `backend/db.py` автоматически читает сначала `../.env`, затем `backend/.env`;
+   - если есть оба файла, значения из `backend/.env` имеют приоритет.
+2. Проверить `DATABASE_URL` в `backend/.env` (или в корневом `.env`):
+   - строка должна быть полностью из Supabase, без переносов;
+   - пароль должен быть URL-encoded (в примере уже так).
+3. Проверить DNS/доступ с вашей машины:
+```bash
+nslookup db.tizootfbwyohpjhkhpdw.supabase.co
+```
+Если имя не резолвится, попробуйте:
+- сменить DNS на 1.1.1.1 / 8.8.8.8;
+- отключить VPN/Proxy (или наоборот включить, если провайдер режет маршрут);
+- использовать Session Pooler URL из Supabase вместо Direct URL.
+
+4. Быстрый health-check backend:
+```bash
+curl "http://localhost:5000/api/profile?telegram_id=1000000001"
+```
+Если вернулся JSON, локальный тест-пользователь создан/обновлён автоматически.

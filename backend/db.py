@@ -1,11 +1,26 @@
 import os
 import re
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Iterator
 from urllib.parse import quote, unquote
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv
+
+
+def _load_env_files() -> None:
+    """Load local env files for backend runs started via `python app.py`."""
+    backend_dir = Path(__file__).resolve().parent
+    repo_root = backend_dir.parent
+
+    # Priority: backend/.env overrides repo-root .env for backend-specific settings.
+    load_dotenv(repo_root / '.env')
+    load_dotenv(backend_dir / '.env', override=True)
+
+
+_load_env_files()
 
 
 def _encode_password_in_postgres_url(database_url: str) -> str:
