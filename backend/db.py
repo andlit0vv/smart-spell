@@ -64,6 +64,23 @@ def get_pooler_database_url() -> str | None:
     return _normalize_database_url(pooler_database_url)
 
 
+def _is_retryable_primary_error(error: psycopg2.OperationalError) -> bool:
+    """Decide if we should retry connection via pooler when primary URL fails."""
+    message = str(error).lower()
+
+    retryable_fragments = (
+        'could not translate host name',
+        'could not connect to server',
+        'connection refused',
+        'network is unreachable',
+        'connection timed out',
+        'timeout expired',
+        'server closed the connection unexpectedly',
+        'no route to host',
+    )
+    return any(fragment in message for fragment in retryable_fragments)
+
+
 @contextmanager
 def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
     primary_database_url = get_database_url()
@@ -72,7 +89,11 @@ def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
     try:
         connection = psycopg2.connect(primary_database_url, cursor_factory=RealDictCursor)
     except psycopg2.OperationalError as exc:
-        should_try_pooler = pooler_database_url and 'could not translate host name' in str(exc)
+        should_try_pooler = (
+            pooler_database_url
+            and pooler_database_url != primary_database_url
+            and _is_retryable_primary_error(exc)
+        )
         if not should_try_pooler:
             raise
         connection = psycopg2.connect(pooler_database_url, cursor_factory=RealDictCursor)
