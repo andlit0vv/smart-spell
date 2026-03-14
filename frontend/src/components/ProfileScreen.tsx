@@ -3,6 +3,7 @@ import { Save, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
+import { apiFetch } from "@/lib/api";
 
 interface ProfileScreenProps {
   theme: "light" | "dark";
@@ -19,7 +20,7 @@ const ProfileScreen = ({ theme, toggleTheme, englishLevel, onEditEnglishLevel }:
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const response = await fetch("/api/profile");
+        const response = await apiFetch("/api/profile");
         if (!response.ok) return;
         const payload = await response.json();
         setName(payload.profile?.name || "");
@@ -41,7 +42,7 @@ const ProfileScreen = ({ theme, toggleTheme, englishLevel, onEditEnglishLevel }:
     setIsSaving(true);
 
     try {
-      const response = await fetch("/api/profile", {
+      const response = await apiFetch("/api/profile", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

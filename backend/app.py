@@ -162,7 +162,7 @@ def _json_db_unavailable(error: Exception):
     if dns_hint:
         details['hint'] = (
             'Direct Supabase host DNS is not resolvable from current environment. '
-            'Set DATABASE_POOLER_URL in backend/.env and retry.'
+            'Set DATABASE_POOLER_URL (or DATABASE_POOLER_DSN) in backend/.env and retry.'
         )
 
     return jsonify(details), 503

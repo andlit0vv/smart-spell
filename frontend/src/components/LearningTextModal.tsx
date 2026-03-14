@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, RefreshCw, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import { apiFetch } from "@/lib/api";
 
 interface Props {
   open: boolean;
@@ -120,7 +121,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
     setAnalysisError("");
 
     try {
-      const response = await fetch("/api/reading/generate", {
+      const response = await apiFetch("/api/reading/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -144,7 +145,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   };
 
   const checkWordInDictionary = async (word: string) => {
-    const response = await fetch("/api/dictionary");
+    const response = await apiFetch("/api/dictionary");
     const payload = await response.json();
 
     if (!response.ok) {
@@ -163,7 +164,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
     setAnalysisError("");
 
     try {
-      const response = await fetch("/api/translation", {
+      const response = await apiFetch("/api/translation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -216,7 +217,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
     setAnalysisError("");
 
     try {
-      const response = await fetch("/api/dictionary", {
+      const response = await apiFetch("/api/dictionary", {
         method: analysisCard.isInDictionary ? "DELETE" : "POST",
         headers: {
           "Content-Type": "application/json",

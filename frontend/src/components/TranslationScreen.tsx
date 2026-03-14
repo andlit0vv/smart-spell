@@ -3,6 +3,7 @@ import { ArrowRight, Languages, BarChart3, FileText, RefreshCw } from "lucide-re
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { apiFetch } from "@/lib/api";
 
 interface TranslationScreenProps {
   theme: "light" | "dark";
@@ -33,7 +34,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/translation", {
+      const response = await apiFetch("/api/translation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -80,7 +81,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
       setConnectionMessage(null);
 
       try {
-        const response = await fetch("/api/dictionary", {
+        const response = await apiFetch("/api/dictionary", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
