@@ -107,39 +107,21 @@ def get_pooler_database_url() -> str | None:
     return _normalize_database_url(pooler_database_url)
 
 
-def _connect_once(database_url: str) -> psycopg2.extensions.connection:
-    return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+def _is_retryable_primary_error(error: psycopg2.OperationalError) -> bool:
+    """Decide if we should retry connection via pooler when primary URL fails."""
+    message = str(error).lower()
 
-
-def _connect_with_retries(database_url: str) -> psycopg2.extensions.connection:
-    last_error: psycopg2.OperationalError | None = None
-
-    for attempt in range(1, CONNECTION_RETRY_ATTEMPTS + 1):
-        try:
-            return _connect_once(database_url)
-        except psycopg2.OperationalError as exc:
-            last_error = exc
-            if attempt == CONNECTION_RETRY_ATTEMPTS:
-                break
-            time.sleep(CONNECTION_RETRY_DELAY_SECONDS)
-
-    if last_error:
-        raise last_error
-
-    raise RuntimeError('Database connection retries exhausted unexpectedly.')
-
-
-def _compose_connection_error(errors: list[tuple[str, psycopg2.OperationalError]]) -> psycopg2.OperationalError:
-    parts = []
-    for idx, (url, error) in enumerate(errors, start=1):
-        parsed = urlsplit(url)
-        host = parsed.hostname or 'unknown-host'
-        port = parsed.port or 5432
-        db_name = parsed.path.lstrip('/') or 'unknown-db'
-        parts.append(f'[{idx}] {host}:{port}/{db_name} -> {error}')
-
-    combined = 'All configured database endpoints failed. ' + ' | '.join(parts)
-    return psycopg2.OperationalError(combined)
+    retryable_fragments = (
+        'could not translate host name',
+        'could not connect to server',
+        'connection refused',
+        'network is unreachable',
+        'connection timed out',
+        'timeout expired',
+        'server closed the connection unexpectedly',
+        'no route to host',
+    )
+    return any(fragment in message for fragment in retryable_fragments)
 
 
 @contextmanager
@@ -150,26 +132,17 @@ def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
             'No database URL is configured. Set DATABASE_URL and optionally DATABASE_POOLER_URL.'
         )
 
-    # Keep explicit names for compatibility with previous debugging and error-reporting flows.
-    primary_database_url = database_urls[0]
-    pooler_database_url = database_urls[1] if len(database_urls) > 1 else None
-
-    errors: list[tuple[str, psycopg2.OperationalError]] = []
-    connection: psycopg2.extensions.connection | None = None
-
-    endpoints_to_try = [primary_database_url]
-    if pooler_database_url:
-        endpoints_to_try.append(pooler_database_url)
-
-    for database_url in endpoints_to_try:
-        try:
-            connection = _connect_with_retries(database_url)
-            break
-        except psycopg2.OperationalError as exc:
-            errors.append((database_url, exc))
-
-    if connection is None:
-        raise _compose_connection_error(errors)
+    try:
+        connection = psycopg2.connect(primary_database_url, cursor_factory=RealDictCursor)
+    except psycopg2.OperationalError as exc:
+        should_try_pooler = (
+            pooler_database_url
+            and pooler_database_url != primary_database_url
+            and _is_retryable_primary_error(exc)
+        )
+        if not should_try_pooler:
+            raise
+        connection = psycopg2.connect(pooler_database_url, cursor_factory=RealDictCursor)
 
     try:
         yield connection
