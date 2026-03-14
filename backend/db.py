@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -8,6 +9,11 @@ from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsp
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
+
+
+CONNECT_TIMEOUT_SECONDS = 8
+CONNECTION_RETRY_ATTEMPTS = 2
+CONNECTION_RETRY_DELAY_SECONDS = 0.25
 
 
 def _load_env_files() -> None:
@@ -46,15 +52,52 @@ def _ensure_sslmode_in_postgres_url(database_url: str) -> str:
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
+def _ensure_connect_timeout_in_postgres_url(database_url: str) -> str:
+    """Prevent long request hangs when upstream DB endpoint is unreachable."""
+    parsed = urlsplit(database_url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+
+    if not query.get('connect_timeout'):
+        query['connect_timeout'] = str(CONNECT_TIMEOUT_SECONDS)
+
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
+
+
 def _normalize_database_url(database_url: str) -> str:
-    return _ensure_sslmode_in_postgres_url(_encode_password_in_postgres_url(database_url))
+    return _ensure_connect_timeout_in_postgres_url(
+        _ensure_sslmode_in_postgres_url(_encode_password_in_postgres_url(database_url))
+    )
+
+
+def _read_database_urls() -> list[str]:
+    """Build prioritized unique list of DB URLs to try for each request."""
+    candidates: list[str] = []
+
+    for env_key in ('DATABASE_URL', 'DATABASE_POOLER_URL'):
+        value = os.getenv(env_key, '').strip()
+        if value:
+            candidates.append(value)
+
+    urls: list[str] = []
+    seen = set()
+    for raw_url in candidates:
+        normalized = _normalize_database_url(raw_url)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        urls.append(normalized)
+
+    return urls
 
 
 def get_database_url() -> str:
-    database_url = os.getenv('DATABASE_URL', '').strip()
-    if not database_url:
-        raise RuntimeError('DATABASE_URL is not set. Please configure Supabase/Postgres connection string.')
-    return _normalize_database_url(database_url)
+    """Backward-compatible accessor for primary URL (first configured candidate)."""
+    urls = _read_database_urls()
+    if not urls:
+        raise RuntimeError(
+            'No database URL is configured. Set DATABASE_URL and optionally DATABASE_POOLER_URL.'
+        )
+    return urls[0]
 
 
 def get_pooler_database_url() -> str | None:
@@ -64,18 +107,61 @@ def get_pooler_database_url() -> str | None:
     return _normalize_database_url(pooler_database_url)
 
 
+def _connect_once(database_url: str) -> psycopg2.extensions.connection:
+    return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+
+
+def _connect_with_retries(database_url: str) -> psycopg2.extensions.connection:
+    last_error: psycopg2.OperationalError | None = None
+
+    for attempt in range(1, CONNECTION_RETRY_ATTEMPTS + 1):
+        try:
+            return _connect_once(database_url)
+        except psycopg2.OperationalError as exc:
+            last_error = exc
+            if attempt == CONNECTION_RETRY_ATTEMPTS:
+                break
+            time.sleep(CONNECTION_RETRY_DELAY_SECONDS)
+
+    if last_error:
+        raise last_error
+
+    raise RuntimeError('Database connection retries exhausted unexpectedly.')
+
+
+def _compose_connection_error(errors: list[tuple[str, psycopg2.OperationalError]]) -> psycopg2.OperationalError:
+    parts = []
+    for idx, (url, error) in enumerate(errors, start=1):
+        parsed = urlsplit(url)
+        host = parsed.hostname or 'unknown-host'
+        port = parsed.port or 5432
+        db_name = parsed.path.lstrip('/') or 'unknown-db'
+        parts.append(f'[{idx}] {host}:{port}/{db_name} -> {error}')
+
+    combined = 'All configured database endpoints failed. ' + ' | '.join(parts)
+    return psycopg2.OperationalError(combined)
+
+
 @contextmanager
 def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
-    primary_database_url = get_database_url()
-    pooler_database_url = get_pooler_database_url()
+    database_urls = _read_database_urls()
+    if not database_urls:
+        raise RuntimeError(
+            'No database URL is configured. Set DATABASE_URL and optionally DATABASE_POOLER_URL.'
+        )
 
-    try:
-        connection = psycopg2.connect(primary_database_url, cursor_factory=RealDictCursor)
-    except psycopg2.OperationalError as exc:
-        should_try_pooler = pooler_database_url and 'could not translate host name' in str(exc)
-        if not should_try_pooler:
-            raise
-        connection = psycopg2.connect(pooler_database_url, cursor_factory=RealDictCursor)
+    errors: list[tuple[str, psycopg2.OperationalError]] = []
+    connection: psycopg2.extensions.connection | None = None
+
+    for database_url in database_urls:
+        try:
+            connection = _connect_with_retries(database_url)
+            break
+        except psycopg2.OperationalError as exc:
+            errors.append((database_url, exc))
+
+    if connection is None:
+        raise _compose_connection_error(errors)
 
     try:
         yield connection
