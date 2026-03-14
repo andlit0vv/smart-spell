@@ -132,6 +132,9 @@ def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
             'No database URL is configured. Set DATABASE_URL and optionally DATABASE_POOLER_URL.'
         )
 
+    primary_database_url = database_urls[0]
+    pooler_database_url = get_pooler_database_url()
+
     try:
         connection = psycopg2.connect(primary_database_url, cursor_factory=RealDictCursor)
     except psycopg2.OperationalError as exc:
