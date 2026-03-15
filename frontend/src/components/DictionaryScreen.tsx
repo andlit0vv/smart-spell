@@ -30,8 +30,19 @@ type LearningMode = null | "chooser" | "text" | "dialogue";
 
 const initialWords: WordData[] = [];
 
-const createCategoryId = (name: string, group: WordCategory["group"]) =>
-  `${group}:${name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
+const createCategoryId = (name: string, group: WordCategory["group"]) => {
+  const normalized = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/(^-|-$)/g, "");
+
+  if (normalized) return `${group}:${normalized}`;
+
+  let hash = 0;
+  for (const char of name) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+  return `${group}:id-${Math.abs(hash)}`;
+};
 
 const groupFromDomain = (_domain: string): WordCategory["group"] => "topic";
 
