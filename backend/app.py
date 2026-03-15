@@ -405,6 +405,7 @@ def _delete_words_from_dictionary(user_id: int, words: list[str]) -> dict[str, A
 def delete_dictionary_word():
     data = request.get_json(silent=True) or {}
     word = (data.get('word') or '').strip()
+    context_sentence = str(data.get('context_sentence') or '').strip()
     if not word:
         return jsonify({'error': 'word is required'}), 400
 
@@ -428,7 +429,7 @@ def mark_dictionary_words_learned():
         return jsonify({'error': 'words must be an array'}), 400
 
     try:
-        user = resolve_current_user(request)
+        user = resolve_current_user()
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
@@ -446,6 +447,7 @@ def mark_dictionary_words_learned():
 def update_dictionary_word_topics():
     data = request.get_json(silent=True) or {}
     word = (data.get('word') or '').strip()
+    context_sentence = str(data.get('context_sentence') or '').strip()
     if not word:
         return jsonify({'error': 'word is required'}), 400
 
