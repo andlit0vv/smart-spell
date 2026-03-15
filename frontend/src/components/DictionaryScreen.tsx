@@ -251,6 +251,30 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     });
   };
 
+
+  const handleDeleteSelectedCategories = () => {
+    const selectedCategoryIds = new Set(categoryFilters);
+    if (selectedCategoryIds.size === 0) return;
+
+    setWordCategoryIds((prev) => {
+      const next: Record<string, string[]> = {};
+      Object.entries(prev).forEach(([word, ids]) => {
+        next[word] = ids.filter((id) => !selectedCategoryIds.has(id));
+      });
+      return next;
+    });
+
+    setCategoriesById((prev) => {
+      const next = { ...prev };
+      selectedCategoryIds.forEach((id) => {
+        delete next[id];
+      });
+      return next;
+    });
+
+    setCategoryFilters(new Set());
+  };
+
   const handleMarkLearned = async () => {
     const wordsToMark = Array.from(selected);
     if (wordsToMark.length === 0) return;

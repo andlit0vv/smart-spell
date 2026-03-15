@@ -15,7 +15,10 @@ from llm import LLMError, analyze_term
 from reading import register_reading_endpoints
 from auth import get_or_create_user, normalize_telegram_id, resolve_current_user
 
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 register_dialog_endpoints(app)
 register_reading_endpoints(app)
 
@@ -205,6 +208,7 @@ def get_profile():
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
+    logger.info('[Auth] /api/profile resolved user_id=%s telegram_id=%s verified=%s test=%s', user.get('id'), user.get('telegram_id'), user.get('is_verified'), user.get('is_test_user'))
     return jsonify({'profile': fetch_user_profile(user['id'], fallback_name=user.get('first_name', ''), avatar_url=user.get('photo_url', '')), 'user': user})
 
 
@@ -430,7 +434,7 @@ def mark_dictionary_words_learned():
         return jsonify({'error': 'words must be an array'}), 400
 
     try:
-        user = resolve_current_user()
+        user = resolve_current_user(request)
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
