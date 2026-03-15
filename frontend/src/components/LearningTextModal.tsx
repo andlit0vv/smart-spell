@@ -87,6 +87,8 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
+  const [highlightedSelection, setHighlightedSelection] = useState("");
+  const [controlsCollapsed, setControlsCollapsed] = useState(false);
 
   const targetWordsSet = useMemo(() => new Set(selectedWords.map((word) => word.toLowerCase())), [selectedWords]);
   const targetStems = useMemo(() => new Set(selectedWords.map((word) => normalizeStem(word)).filter((stem) => stem.length >= 4)), [selectedWords]);
@@ -97,6 +99,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
     setError("");
     setAnalysisCard(null);
     setAnalysisError("");
+    setHighlightedSelection("");
 
     try {
       const response = await apiFetch("/api/reading/generate", {
@@ -112,6 +115,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to generate reading text");
       setText(payload.text || "");
+      setControlsCollapsed(true);
     } catch (err) {
       console.error("[Reading] Failed to generate text", err);
       setError("Could not generate text. Please try again.");
@@ -277,7 +281,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               )}
               {text && (
                 <div className="mx-auto w-full max-w-[780px]" onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
-                  <ReadingText text={text} stems={targetStems} words={targetWordsSet} />
+                  <ReadingText text={text} stems={targetStems} words={targetWordsSet} highlightedSelection={highlightedSelection} />
                 </div>
               )}
             </div>

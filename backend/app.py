@@ -438,6 +438,51 @@ def add_dictionary_word():
     })
 
 
+
+
+def _delete_words_from_dictionary(user_id: int, words: list[str]) -> dict[str, Any]:
+    normalized_pairs: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for raw_word in words:
+        word = (raw_word or '').strip()
+        if not word:
+            continue
+        normalized = normalize_word(word)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        normalized_pairs.append((word, normalized))
+
+    if not normalized_pairs:
+        return {'deletedCount': 0, 'deletedWords': []}
+
+    normalized_words = [item[1] for item in normalized_pairs]
+
+    with get_db_cursor(commit=True) as cursor:
+        cursor.execute(
+            '''
+            DELETE FROM dictionary_word_topics
+            WHERE user_id = %s AND normalized_word = ANY(%s::text[])
+            ''',
+            (user_id, normalized_words),
+        )
+
+        cursor.execute(
+            '''
+            DELETE FROM dictionary_words
+            WHERE user_id = %s AND normalized_word = ANY(%s::text[])
+            RETURNING word, normalized_word
+            ''',
+            (user_id, normalized_words),
+        )
+        deleted_rows = cursor.fetchall()
+
+    deleted_map = {row['normalized_word']: row['word'] for row in deleted_rows}
+    deleted_words = [deleted_map[item[1]] for item in normalized_pairs if item[1] in deleted_map]
+    return {'deletedCount': len(deleted_words), 'deletedWords': deleted_words}
+
+
 @app.delete('/api/dictionary')
 def delete_dictionary_word():
     data = request.get_json(silent=True) or {}
@@ -451,20 +496,33 @@ def delete_dictionary_word():
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
-    with get_db_cursor(commit=True) as cursor:
-        cursor.execute(
-            '''
-            DELETE FROM dictionary_words
-            WHERE user_id = %s AND normalized_word = %s
-            RETURNING id
-            ''',
-            (user['id'], normalize_word(word)),
-        )
-        deleted = cursor.fetchone()
-
-    if not deleted:
+    result = _delete_words_from_dictionary(user['id'], [word])
+    if result['deletedCount'] == 0:
         return jsonify({'error': 'Word not found'}), 404
-    return jsonify({'message': 'Word deleted'})
+
+    return jsonify({'message': 'Word deleted', 'deletedWords': result['deletedWords'], 'deletedCount': result['deletedCount']})
+
+
+@app.post('/api/dictionary/learned')
+def mark_dictionary_words_learned():
+    data = request.get_json(silent=True) or {}
+    raw_words = data.get('words')
+    if not isinstance(raw_words, list):
+        return jsonify({'error': 'words must be an array'}), 400
+
+    try:
+        user = resolve_current_user()
+    except (RuntimeError, ValueError) as error:
+        return _json_bad_request(error)
+
+    words = [str(item) for item in raw_words]
+    result = _delete_words_from_dictionary(user['id'], words)
+
+    return jsonify({
+        'message': 'Words marked as learned',
+        'deletedWords': result['deletedWords'],
+        'deletedCount': result['deletedCount'],
+    })
 
 
 @app.patch('/api/dictionary/topics')

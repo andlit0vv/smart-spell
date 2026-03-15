@@ -75,7 +75,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [wordCategoryIds, setWordCategoryIds] = useState<Record<string, string[]>>({});
   const [activeWord, setActiveWord] = useState<string | null>(null);
 
-  const [filterGroup, setFilterGroup] = useState<"all" | "topic">("all");
   const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -169,9 +168,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
   const allCategories = useMemo(() => Object.values(categoriesById), [categoriesById]);
 
-  const visibleCategories = allCategories
-    .filter((item) => (filterGroup === "all" ? true : item.group === filterGroup))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const visibleCategories = allCategories.sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredWords = words.filter((word) => {
     if (categoryFilters.size === 0) return true;
@@ -212,16 +209,49 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     });
   };
 
-  const handleMarkLearned = () => {
-    setWords((prev) => prev.filter((w) => !selected.has(w.word)));
-    setSelected(new Set());
+  const handleMarkLearned = async () => {
+    const wordsToMark = Array.from(selected);
+    if (wordsToMark.length === 0) return;
+
+    try {
+      const response = await apiFetch("/api/dictionary/learned", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ words: wordsToMark }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to mark words as learned");
+
+      const deletedWords = Array.isArray(payload.deletedWords) ? payload.deletedWords : wordsToMark;
+      const deletedSet = new Set(deletedWords.map((word: string) => word.toLowerCase()));
+      setWords((prev) => prev.filter((w) => !deletedSet.has(w.word.toLowerCase())));
+      setSelected(new Set());
+      notifyDictionaryUpdated();
+    } catch (error) {
+      console.error("[Dictionary] Failed to mark words as learned", error);
+    }
   };
 
-  const handleDialogueFinish = (markAsLearned: boolean, learnedWords: string[]) => {
-    if (markAsLearned) {
-      const learnedSet = new Set(learnedWords);
-      setWords((prev) => prev.filter((w) => !learnedSet.has(w.word)));
+  const handleDialogueFinish = async (markAsLearned: boolean, learnedWords: string[]) => {
+    if (markAsLearned && learnedWords.length > 0) {
+      try {
+        const response = await apiFetch("/api/dictionary/learned", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ words: learnedWords }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Failed to mark words as learned");
+
+        const deletedWords = Array.isArray(payload.deletedWords) ? payload.deletedWords : learnedWords;
+        const learnedSet = new Set(deletedWords.map((word: string) => word.toLowerCase()));
+        setWords((prev) => prev.filter((w) => !learnedSet.has(w.word.toLowerCase())));
+        notifyDictionaryUpdated();
+      } catch (error) {
+        console.error("[Dictionary] Failed to persist learned words", error);
+      }
     }
+
     setLearningMode(null);
     setDialogueWords([]);
     setSelected(new Set());
@@ -286,24 +316,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
             )}
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-1.5 rounded-xl bg-background/40 p-1">
-            {(["all", "topic"] as const).map((group) => (
-              <button
-                key={group}
-                type="button"
-                onClick={() => {
-                  setFilterGroup(group);
-                  if (group === "all") {
-                    setCategoryFilters(new Set(allCategories.map((category) => category.id)));
-                  }
-                }}
-                className={`rounded-lg px-2 py-1.5 text-[11px] font-semibold capitalize ${filterGroup === group ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-              >
-                {group === "topic" ? "topics" : group}
-              </button>
-            ))}
-          </div>
-
           <div className="mt-3 flex flex-wrap gap-2">
             {visibleCategories.map((category) => {
               const active = categoryFilters.has(category.id);
@@ -342,7 +354,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
             </button>
           </div>
 
-          <p className="mt-2 text-xs text-muted-foreground">Showing {filteredWords.length} of {words.length} words</p>
+          <p className="mt-2 text-xs text-muted-foreground">Showing {filteredWords.length} words</p>
         </div>
 
         <div className="mt-4 flex flex-col gap-2.5">

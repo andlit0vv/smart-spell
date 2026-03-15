@@ -120,6 +120,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
       if (payload.practice_state) setState(payload.practice_state);
       setFeedback({ message: "", correction: "" });
       setAnswer("");
+      setHighlightedSelection("");
     } catch (error) {
       console.error("[Dialogue] Generate failed", error);
       setFeedback({ message: "Could not generate a situation. Please try again.", correction: "" });
@@ -161,6 +162,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
     setFeedback({ message: "", correction: "" });
     setAnswer("");
     setComplete(false);
+    setHighlightedSelection("");
   };
 
   const nextQuestion = async () => {
