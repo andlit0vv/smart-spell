@@ -2,15 +2,12 @@ import hashlib
 import hmac
 import json
 import os
-import logging
 from typing import Any
 from urllib.parse import parse_qs
 
 from flask import Request
 
 from db import get_db_cursor
-
-logger = logging.getLogger(__name__)
 
 
 def parse_telegram_init_data(raw_init_data: str) -> dict[str, str]:
@@ -69,12 +66,6 @@ def normalize_telegram_id(raw_value: Any) -> int:
     return telegram_id
 
 
-
-
-def _allow_local_fallback() -> bool:
-    return os.getenv("ALLOW_LOCAL_TEST_AUTH", "").strip().lower() in {"1", "true", "yes", "on"}
-
-
 def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
     init_data = flask_request.headers.get("X-Telegram-Init-Data", "").strip()
     parsed_user = extract_telegram_user(init_data) if init_data else {}
@@ -84,57 +75,27 @@ def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
 
     header_id = flask_request.headers.get("X-Telegram-Id", "").strip()
     query_id = (flask_request.args.get("telegram_id") or "").strip()
-    env_id = os.getenv("LOCAL_TEST_TELEGRAM_ID", "").strip() if _allow_local_fallback() else ""
+    env_id = os.getenv("LOCAL_TEST_TELEGRAM_ID", "").strip()
 
     raw_id = header_id or query_id or parsed_user.get("telegram_id") or env_id
-    source = (
-        "header"
-        if header_id
-        else "query"
-        if query_id
-        else "initData"
-        if parsed_user.get("telegram_id")
-        else "local_fallback"
-        if env_id
-        else "missing"
-    )
-
-    logger.info(
-        "[Auth] resolve context: source=%s initData_present=%s initData_len=%s verified=%s",
-        source,
-        bool(init_data),
-        len(init_data),
-        is_verified,
-    )
-
     if not raw_id:
-        logger.error("[Auth] Telegram id missing. header=%s query=%s parsed_user=%s", bool(header_id), bool(query_id), bool(parsed_user))
         raise ValueError(
             "Telegram user id is missing. Provide X-Telegram-Init-Data/X-Telegram-Id "
-            "or set ALLOW_LOCAL_TEST_AUTH with LOCAL_TEST_TELEGRAM_ID for local mode."
+            "or set LOCAL_TEST_TELEGRAM_ID."
         )
 
     telegram_id = normalize_telegram_id(raw_id)
     username = (
         flask_request.headers.get("X-Telegram-Username", "").strip()
         or (parsed_user.get("username") or "").strip()
-        or (os.getenv("LOCAL_TEST_USERNAME", "").strip() if _allow_local_fallback() else "")
+        or os.getenv("LOCAL_TEST_USERNAME", "").strip()
         or f"local_{telegram_id}"
     )
     first_name = (
         flask_request.headers.get("X-Telegram-First-Name", "").strip()
         or (parsed_user.get("first_name") or "").strip()
-        or (os.getenv("LOCAL_TEST_FIRST_NAME", "").strip() if _allow_local_fallback() else "")
-        or "Telegram User"
-    )
-
-    logger.info(
-        "[Auth] resolved telegram_id=%s username=%s first_name=%s photo=%s is_test_user=%s",
-        telegram_id,
-        username,
-        first_name,
-        bool(parsed_user.get("photo_url")),
-        (not is_verified),
+        or os.getenv("LOCAL_TEST_FIRST_NAME", "").strip()
+        or "Local Tester"
     )
 
     return {
@@ -148,7 +109,6 @@ def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
 
 
 def get_or_create_user(context: dict[str, Any]) -> dict[str, Any]:
-    logger.info("[Auth] get_or_create_user for telegram_id=%s", context.get("telegram_id"))
     with get_db_cursor(commit=True) as cursor:
         cursor.execute(
             '''
@@ -173,7 +133,6 @@ def get_or_create_user(context: dict[str, Any]) -> dict[str, Any]:
 
     user["photo_url"] = context.get("photo_url") or ""
     user["is_verified"] = bool(context.get("is_verified"))
-    logger.info("[Auth] user resolved id=%s telegram_id=%s is_test_user=%s", user.get("id"), user.get("telegram_id"), user.get("is_test_user"))
     return user
 
 

@@ -61,7 +61,7 @@ Additional rules:
 - Return ONLY valid JSON. No explanations.
 
 JSON structure:
-{
+{{
   "term": "<input word or phrase>",
   "relevance": <0-10>,
   "definition": "<short definition in English>",
@@ -70,7 +70,7 @@ JSON structure:
     "<example sentence>",
     "<example sentence>"
   ]
-}
+}}
 
 term: {term}
 context_sentence: {context_sentence}
@@ -128,7 +128,6 @@ def analyze_term(term: str, user_bio: str = "", user_level: str = "", context_se
 
     request_payload = {
         "model": os.getenv("OPENAI_MODEL", DEFAULT_MODEL),
-        "temperature": 0.2,
         "messages": [
             {
                 "role": "user",
