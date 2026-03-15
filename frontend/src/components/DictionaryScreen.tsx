@@ -425,7 +425,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
             {categoryFilters.size > 0 && (
               <div className="flex items-center gap-2">
                 <button type="button" onClick={handleDeleteSelectedCategories} className="text-xs font-semibold text-destructive">
-                  Delete
+                  Delete Category
                 </button>
                 <button type="button" onClick={() => setCategoryFilters(new Set())} className="text-xs font-semibold text-primary">
                   Clear
