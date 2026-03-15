@@ -28,13 +28,6 @@ const BottomNav = ({ active, onTabChange }: BottomNavProps) => {
               className="relative flex flex-1 flex-col items-center gap-0.5 py-1.5 transition-colors"
             >
               <div className="relative flex h-6 w-6 items-center justify-center">
-                {isActive && (
-                  <motion.div
-                    layoutId="navIndicator"
-                    className="absolute -top-2 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  />
-                )}
                 <tab.icon
                   size={22}
                   strokeWidth={isActive ? 2.2 : 1.8}
