@@ -1,4 +1,4 @@
-const LOGO_URL = "https://anova.ai";
+const LOGO_URL = "https://t.me/aivion_agency_bot";
 
 const AppLogo = () => {
   return (
