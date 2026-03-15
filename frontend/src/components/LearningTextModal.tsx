@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -77,6 +77,53 @@ const ReadingText = ({ text, stems, words }: { text: string; stems: Set<string>;
   );
 };
 
+
+const selectWordAtPoint = (x: number, y: number) => {
+  const documentWithCaretRange = document as Document & {
+    caretRangeFromPoint?: (pointX: number, pointY: number) => Range | null;
+    caretPositionFromPoint?: (pointX: number, pointY: number) => { offsetNode: Node; offset: number } | null;
+  };
+
+  let range: Range | null = null;
+
+  if (documentWithCaretRange.caretRangeFromPoint) {
+    range = documentWithCaretRange.caretRangeFromPoint(x, y);
+  } else if (documentWithCaretRange.caretPositionFromPoint) {
+    const position = documentWithCaretRange.caretPositionFromPoint(x, y);
+    if (position) {
+      range = document.createRange();
+      range.setStart(position.offsetNode, position.offset);
+      range.collapse(true);
+    }
+  }
+
+  if (!range) return "";
+
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+
+  const node = range.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE || !node.textContent) return "";
+
+  const text = node.textContent;
+  const isWordChar = (value: string) => /[\p{L}\p{N}'’-]/u.test(value);
+
+  let start = range.startOffset;
+  let end = range.startOffset;
+
+  while (start > 0 && isWordChar(text[start - 1])) start -= 1;
+  while (end < text.length && isWordChar(text[end])) end += 1;
+
+  if (start === end) return "";
+
+  const wordRange = document.createRange();
+  wordRange.setStart(node, start);
+  wordRange.setEnd(node, end);
+
+  selection?.addRange(wordRange);
+  return text.slice(start, end).trim();
+};
+
 const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const [allowWordForms, setAllowWordForms] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -88,6 +135,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const [analysisError, setAnalysisError] = useState("");
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const targetWordsSet = useMemo(() => new Set(selectedWords.map((word) => word.toLowerCase())), [selectedWords]);
   const targetStems = useMemo(() => new Set(selectedWords.map((word) => normalizeStem(word)).filter((stem) => stem.length >= 4)), [selectedWords]);
@@ -184,7 +232,37 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
 
     const contextSentence = findSentenceContainingSelection(text, normalized);
     void requestWordAnalysis(normalized, contextSentence);
-    selection?.removeAllRanges();
+  };
+
+  const handleDoubleClickSelection = (event: MouseEvent<HTMLDivElement>) => {
+    const selectedWord = selectWordAtPoint(event.clientX, event.clientY);
+    if (!selectedWord) return;
+
+    const contextSentence = findSentenceContainingSelection(text, selectedWord);
+    void requestWordAnalysis(selectedWord, contextSentence);
+  };
+
+  const handleTouchSelection = (event: TouchEvent<HTMLDivElement>) => {
+    handleTextSelection();
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const now = Date.now();
+    const previousTap = lastTapRef.current;
+    lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+
+    if (!previousTap) return;
+
+    const isQuickDoubleTap = now - previousTap.time < 350;
+    const isNearPreviousTap = Math.hypot(previousTap.x - touch.clientX, previousTap.y - touch.clientY) < 32;
+    if (!isQuickDoubleTap || !isNearPreviousTap) return;
+
+    const selectedWord = selectWordAtPoint(touch.clientX, touch.clientY);
+    if (!selectedWord) return;
+
+    const contextSentence = findSentenceContainingSelection(text, selectedWord);
+    void requestWordAnalysis(selectedWord, contextSentence);
   };
 
   const handleDictionaryAction = async () => {
@@ -210,7 +288,11 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
       if (!response.ok) throw new Error(payload.error || "Dictionary update failed");
 
       notifyDictionaryUpdated();
-      setAnalysisCard((prev) => (prev ? { ...prev, isInDictionary: !prev.isInDictionary } : prev));
+      if (!analysisCard.isInDictionary) {
+        setAnalysisCard(null);
+      } else {
+        setAnalysisCard((prev) => (prev ? { ...prev, isInDictionary: !prev.isInDictionary } : prev));
+      }
     } catch (dictionaryError) {
       setAnalysisError(dictionaryError instanceof Error ? dictionaryError.message : "Cannot update dictionary");
     } finally {
@@ -298,7 +380,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
                 </div>
               )}
               {text && (
-                <div className="mx-auto w-full max-w-[780px]" onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
+                <div className="mx-auto w-full max-w-[780px] selection:bg-primary/35 selection:text-foreground" onMouseUp={handleTextSelection} onDoubleClick={handleDoubleClickSelection} onTouchEnd={handleTouchSelection}>
                   <ReadingText text={text} stems={targetStems} words={targetWordsSet} />
                 </div>
               )}

@@ -251,6 +251,34 @@
   }
 
 
+
+  .english-level-slider [data-orientation="horizontal"] {
+    height: 6px;
+  }
+
+  .english-level-slider [data-radix-slider-track] {
+    background: linear-gradient(90deg, rgba(125, 170, 255, 0.35), rgba(59, 130, 246, 0.25));
+    height: 8px;
+  }
+
+  .english-level-slider [data-radix-slider-range] {
+    background: linear-gradient(90deg, #60a5fa, #2563eb);
+    transition: width 180ms ease;
+  }
+
+  .english-level-slider [data-radix-slider-thumb] {
+    height: 22px;
+    width: 22px;
+    border-width: 3px;
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .english-level-slider [data-radix-slider-thumb]:active {
+    transform: scale(1.08);
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45);
+  }
+
   .dark .btn-secondary-glass {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
