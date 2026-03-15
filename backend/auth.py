@@ -53,7 +53,12 @@ def extract_telegram_user(raw_init_data: str) -> dict[str, Any]:
         "telegram_id": user.get("id"),
         "username": user.get("username"),
         "first_name": user.get("first_name"),
+        "last_name": user.get("last_name"),
+        "language_code": user.get("language_code"),
+        "is_premium": bool(user.get("is_premium")),
+        "allows_write_to_pm": bool(user.get("allows_write_to_pm")),
         "photo_url": user.get("photo_url"),
+        "raw_user": user,
     }
 
 
@@ -71,65 +76,96 @@ def normalize_telegram_id(raw_value: Any) -> int:
 
 def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
     init_data = flask_request.headers.get("X-Telegram-Init-Data", "").strip()
-    parsed_user = extract_telegram_user(init_data) if init_data else {}
+    if not init_data:
+        raise ValueError("Telegram init data is missing in X-Telegram-Init-Data header.")
+
+    parsed_user = extract_telegram_user(init_data)
 
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    is_verified = validate_telegram_init_data(init_data, bot_token) if init_data and bot_token else bool(init_data)
+    if not bot_token:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN is required to verify Telegram init data.")
 
-    header_id = flask_request.headers.get("X-Telegram-Id", "").strip()
-    query_id = (flask_request.args.get("telegram_id") or "").strip()
-    env_id = os.getenv("LOCAL_TEST_TELEGRAM_ID", "").strip()
+    is_verified = validate_telegram_init_data(init_data, bot_token)
+    if not is_verified:
+        raise ValueError("Telegram init data signature verification failed.")
 
     logger.info(
-        "[Auth] Incoming Telegram auth payload | has_init_data=%s parsed_user_id=%s header_id=%s query_id=%s has_bot_token=%s verified=%s",
+        "[Auth] Incoming Telegram auth payload | has_init_data=%s parsed_user_id=%s has_bot_token=%s verified=%s",
         bool(init_data),
         parsed_user.get("telegram_id"),
-        bool(header_id),
-        bool(query_id),
         bool(bot_token),
         is_verified,
     )
 
-    raw_id = header_id or query_id or parsed_user.get("telegram_id") or env_id
+    raw_id = parsed_user.get("telegram_id")
     if not raw_id:
-        raise ValueError(
-            "Telegram user id is missing. Provide X-Telegram-Init-Data/X-Telegram-Id "
-            "or set LOCAL_TEST_TELEGRAM_ID."
-        )
+        raise ValueError("Telegram user id is missing in init data.")
 
     telegram_id = normalize_telegram_id(raw_id)
-    logger.info("[Auth] Resolved telegram_id=%s source=%s", telegram_id, (
-        "header" if header_id else "query" if query_id else "init_data" if parsed_user.get("telegram_id") else "env"
-    ))
+    logger.info("[Auth] Resolved telegram_id=%s source=init_data", telegram_id)
     username = (
-        flask_request.headers.get("X-Telegram-Username", "").strip()
-        or (parsed_user.get("username") or "").strip()
-        or os.getenv("LOCAL_TEST_USERNAME", "").strip()
-        or f"local_{telegram_id}"
+        (parsed_user.get("username") or "").strip()
+        or f"telegram_{telegram_id}"
     )
     first_name = (
-        flask_request.headers.get("X-Telegram-First-Name", "").strip()
-        or (parsed_user.get("first_name") or "").strip()
-        or os.getenv("LOCAL_TEST_FIRST_NAME", "").strip()
-        or "Local Tester"
+        (parsed_user.get("first_name") or "").strip()
+        or "Telegram User"
     )
 
     context = {
         "telegram_id": telegram_id,
         "username": username,
         "first_name": first_name,
+        "last_name": (parsed_user.get("last_name") or "").strip(),
+        "language_code": (parsed_user.get("language_code") or "").strip(),
+        "is_premium": bool(parsed_user.get("is_premium")),
+        "allows_write_to_pm": bool(parsed_user.get("allows_write_to_pm")),
         "photo_url": (parsed_user.get("photo_url") or "").strip(),
-        "is_test_user": not is_verified,
+        "raw_init_data": init_data,
+        "raw_user": parsed_user.get("raw_user") or {},
         "is_verified": is_verified,
     }
     logger.info(
-        "[Auth] Final context telegram_id=%s username=%s first_name=%s is_test_user=%s",
+        "[Auth] Final context telegram_id=%s username=%s first_name=%s verified=%s",
         context["telegram_id"],
         context["username"],
         context["first_name"],
-        context["is_test_user"],
+        context["is_verified"],
     )
     return context
+
+
+def _persist_telegram_payload(user_id: int, context: dict[str, Any]) -> None:
+    with get_db_cursor(commit=True) as cursor:
+        cursor.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS telegram_auth_payloads (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                telegram_id BIGINT NOT NULL,
+                init_data TEXT NOT NULL,
+                user_payload JSONB NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            '''
+        )
+        cursor.execute(
+            '''
+            INSERT INTO telegram_auth_payloads (user_id, telegram_id, init_data, user_payload)
+            VALUES (%s, %s, %s, %s::jsonb)
+            ON CONFLICT (user_id)
+            DO UPDATE SET
+                telegram_id = EXCLUDED.telegram_id,
+                init_data = EXCLUDED.init_data,
+                user_payload = EXCLUDED.user_payload,
+                updated_at = NOW()
+            ''',
+            (
+                user_id,
+                context["telegram_id"],
+                context.get("raw_init_data") or "",
+                json.dumps(context.get("raw_user") or {}, ensure_ascii=False),
+            ),
+        )
 
 
 def get_or_create_user(context: dict[str, Any]) -> dict[str, Any]:
@@ -137,12 +173,12 @@ def get_or_create_user(context: dict[str, Any]) -> dict[str, Any]:
         cursor.execute(
             '''
             INSERT INTO users (telegram_id, username, first_name, is_test_user)
-            VALUES (%s, %s, %s, %s)
+            VALUES (%s, %s, %s, FALSE)
             ON CONFLICT (telegram_id)
             DO UPDATE SET
                 username = COALESCE(NULLIF(EXCLUDED.username, ''), users.username),
                 first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), users.first_name),
-                is_test_user = EXCLUDED.is_test_user,
+                is_test_user = FALSE,
                 updated_at = NOW()
             RETURNING id, telegram_id, username, first_name, is_test_user
             ''',
@@ -150,12 +186,17 @@ def get_or_create_user(context: dict[str, Any]) -> dict[str, Any]:
                 context["telegram_id"],
                 context["username"],
                 context["first_name"],
-                context["is_test_user"],
             ),
         )
         user = dict(cursor.fetchone())
 
+    _persist_telegram_payload(user["id"], context)
+
     user["photo_url"] = context.get("photo_url") or ""
+    user["last_name"] = context.get("last_name") or ""
+    user["language_code"] = context.get("language_code") or ""
+    user["is_premium"] = bool(context.get("is_premium"))
+    user["allows_write_to_pm"] = bool(context.get("allows_write_to_pm"))
     user["is_verified"] = bool(context.get("is_verified"))
     return user
 

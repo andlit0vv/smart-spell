@@ -1,10 +1,8 @@
 
-import json
 import logging
 import os
 import re
 from typing import Any
-from urllib.parse import urlencode
 
 from flask import Flask, jsonify, request
 import psycopg2
@@ -13,7 +11,7 @@ from db import get_db_cursor
 from dialog import register_dialog_endpoints
 from llm import LLMError, analyze_term
 from reading import register_reading_endpoints
-from auth import get_or_create_user, normalize_telegram_id, resolve_current_user
+from auth import resolve_current_user
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
@@ -208,7 +206,7 @@ def get_profile():
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
-    logger.info('[Auth] /api/profile resolved user_id=%s telegram_id=%s verified=%s test=%s', user.get('id'), user.get('telegram_id'), user.get('is_verified'), user.get('is_test_user'))
+    logger.info('[Auth] /api/profile resolved user_id=%s telegram_id=%s verified=%s', user.get('id'), user.get('telegram_id'), user.get('is_verified'))
     return jsonify({'profile': fetch_user_profile(user['id'], fallback_name=user.get('first_name', ''), avatar_url=user.get('photo_url', '')), 'user': user})
 
 
@@ -534,50 +532,6 @@ def get_topics():
         rows = cursor.fetchall()
 
     return jsonify({'topics': [{'name': row['name'], 'wordsCount': row['words_count']} for row in rows]})
-
-
-@app.post('/api/test-user/starter-pack')
-def create_test_user_starter_pack():
-    data = request.get_json(silent=True) or {}
-
-    telegram_id = normalize_telegram_id(data.get('telegramId') or os.getenv('LOCAL_TEST_TELEGRAM_ID') or 1000000001)
-    username = (data.get('username') or os.getenv('LOCAL_TEST_USERNAME') or f'local_{telegram_id}').strip()
-    first_name = (data.get('firstName') or os.getenv('LOCAL_TEST_FIRST_NAME') or 'Local').strip()
-
-    with get_db_cursor(commit=True) as cursor:
-        cursor.execute(
-            '''
-            INSERT INTO local_test_user_pool (telegram_id, username, first_name, is_reserved)
-            VALUES (%s, %s, %s, FALSE)
-            ON CONFLICT (telegram_id)
-            DO UPDATE SET username = EXCLUDED.username, first_name = EXCLUDED.first_name
-            ''',
-            (telegram_id, username, first_name),
-        )
-
-    user = get_or_create_user({
-        'telegram_id': telegram_id,
-        'username': username,
-        'first_name': first_name,
-        'is_test_user': True,
-    })
-
-    init_data = urlencode({
-        'query_id': f'local-{telegram_id}',
-        'user': json.dumps({'id': telegram_id, 'username': username, 'first_name': first_name}, separators=(',', ':')),
-        'auth_date': '1735689600',
-        'hash': 'local-dev-no-signature',
-    })
-
-    return jsonify({
-        'message': 'Local Telegram starter pack is ready',
-        'user': user,
-        'initData': init_data,
-        'headersExample': {
-            'X-Telegram-Init-Data': init_data,
-            'X-Telegram-Id': str(telegram_id),
-        },
-    })
 
 
 @app.get('/health')
