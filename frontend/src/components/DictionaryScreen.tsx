@@ -5,7 +5,7 @@ import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
 import DialogueTraining from "./DialogueTraining";
 import ThemeToggle from "./ThemeToggle";
-import { DICTIONARY_UPDATED_EVENT, apiFetch, notifyDictionaryUpdated } from "@/lib/api";
+import { DICTIONARY_UPDATED_EVENT, apiFetch } from "@/lib/api";
 
 interface WordData {
   word: string;
@@ -178,6 +178,18 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
   const selectedWords = words.filter((w) => selected.has(w.word));
 
+  useEffect(() => {
+    if (categoryFilters.size === 0) {
+      setSelected((prev) => (prev.size === 0 ? prev : new Set()));
+      return;
+    }
+
+    setSelected((prev) => {
+      const next = new Set(filteredWords.map((item) => item.word));
+      const unchanged = prev.size === next.size && Array.from(next).every((word) => prev.has(word));
+      return unchanged ? prev : next;
+    });
+  }, [categoryFilters, filteredWords]);
 
   const toggle = (word: string) => {
     setSelected((prev) => {

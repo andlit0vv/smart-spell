@@ -42,22 +42,6 @@ const findSentenceContainingSelection = (text: string, selection: string) => {
   return text.slice(start, end).replace(/\s+/g, " ").trim();
 };
 
-const renderHighlightedSnippet = (text: string, highlightedSelection: string) => {
-  if (!highlightedSelection.trim()) return text;
-  const index = text.toLowerCase().indexOf(highlightedSelection.toLowerCase());
-  if (index < 0) return text;
-
-  return (
-    <>
-      {text.slice(0, index)}
-      <mark className="rounded-md bg-primary/35 px-1 py-0.5 text-foreground shadow-inner shadow-primary/25">
-        {text.slice(index, index + highlightedSelection.length)}
-      </mark>
-      {text.slice(index + highlightedSelection.length)}
-    </>
-  );
-};
-
 const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: DialogueTrainingProps) => {
   const targetWords = useMemo(() => words.map((item) => item.word), [words]);
   const [practiceId, setPracticeId] = useState<string | null>(null);
@@ -89,7 +73,6 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
-  const [highlightedSelection, setHighlightedSelection] = useState("");
 
   const learnedWords = useMemo(
     () => Object.entries(state.word_status)
@@ -277,7 +260,6 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
     const normalized = selectedText.replace(/\s+/g, " ").trim();
     if (!normalized) return;
 
-    setHighlightedSelection(normalized);
     const contextSentence = findSentenceContainingSelection(sourceText, normalized);
     void requestWordAnalysis(normalized, contextSentence);
     selection?.removeAllRanges();
@@ -342,19 +324,16 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
             <button onClick={generateScenario} className="text-primary" aria-label="Refresh situation"><RefreshCw size={16} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
-        {isEditingSituation ? (
-          <textarea
-            value={situation}
-            onChange={(e) => setSituation(e.target.value)}
-            onBlur={() => void regenerateQuestion()}
-            rows={3}
-            className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        ) : (
-          <p className="select-text rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground" onMouseUp={() => handleSelectionFromText(situation)} onTouchEnd={() => handleSelectionFromText(situation)}>
-            {renderHighlightedSnippet(situation, highlightedSelection)}
-          </p>
-        )}
+        <textarea
+          value={situation}
+          onChange={(e) => setSituation(e.target.value)}
+          onBlur={() => void regenerateQuestion()}
+          onMouseUp={() => handleSelectionFromText(situation)}
+          onTouchEnd={() => handleSelectionFromText(situation)}
+          readOnly={!isEditingSituation}
+          rows={3}
+          className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 read-only:opacity-80"
+        />
       </div>
 
       <div className="mb-4 rounded-2xl glass-dialogue p-5">
@@ -365,7 +344,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
           </button>
         </div>
         <p className="select-text text-sm text-foreground" onMouseUp={() => handleSelectionFromText(question)} onTouchEnd={() => handleSelectionFromText(question)}>
-          {renderHighlightedSnippet(questionLoading ? "Updating question..." : question, highlightedSelection)}
+          {questionLoading ? "Updating question..." : question}
         </p>
       </div>
 
@@ -398,11 +377,11 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
       <div className="mt-4 rounded-2xl glass-dialogue p-4">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">Feedback</p>
         <p className="select-text text-sm text-foreground" onMouseUp={() => handleSelectionFromText(feedback.message)} onTouchEnd={() => handleSelectionFromText(feedback.message)}>
-          {renderHighlightedSnippet(feedback.message || "Submit your answer to get feedback.", highlightedSelection)}
+          {feedback.message || "Submit your answer to get feedback."}
         </p>
         {feedback.correction && (
           <p className="mt-2 select-text text-sm text-muted-foreground" onMouseUp={() => handleSelectionFromText(feedback.correction)} onTouchEnd={() => handleSelectionFromText(feedback.correction)}>
-            Correction: {renderHighlightedSnippet(feedback.correction, highlightedSelection)}
+            Correction: {feedback.correction}
           </p>
         )}
       </div>

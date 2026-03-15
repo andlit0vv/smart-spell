@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import SelectionAnalysisCard, { type WordAnalysisCard } from "@/components/SelectionAnalysisCard";
 import { apiFetch, notifyDictionaryUpdated } from "@/lib/api";
@@ -52,45 +52,27 @@ const findSentenceContainingSelection = (text: string, selection: string) => {
   return text.slice(start, end).replace(/\s+/g, " ").trim();
 };
 
-const renderTargetWords = (rawText: string, stems: Set<string>, words: Set<string>, keyPrefix: string) => {
-  const parts = rawText.split(/(\s+)/);
-  return parts.map((part, index) => {
-    if (/^\s+$/.test(part)) return <span key={`${keyPrefix}-${index}`}>{part}</span>;
-
-    const clean = part.replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "");
-    const lower = clean.toLowerCase();
-    const stem = normalizeStem(lower);
-    const isTargetWord = words.has(lower) || (stem.length >= 4 && stems.has(stem));
-
-    if (!isTargetWord) return <span key={`${keyPrefix}-${index}`}>{part}</span>;
-
-    return (
-      <strong key={`${keyPrefix}-${index}`} className="font-bold text-black dark:text-white">
-        {part}
-      </strong>
-    );
-  });
-};
-
-const ReadingText = ({ text, stems, words, highlightedSelection }: { text: string; stems: Set<string>; words: Set<string>; highlightedSelection: string }) => {
-  const normalizedHighlight = highlightedSelection.trim();
-  const highlightIndex = normalizedHighlight ? text.toLowerCase().indexOf(normalizedHighlight.toLowerCase()) : -1;
-
-  if (highlightIndex < 0) {
-    return <p className="select-text text-[15px] leading-relaxed text-foreground/85">{renderTargetWords(text, stems, words, "plain")}</p>;
-  }
-
-  const before = text.slice(0, highlightIndex);
-  const selection = text.slice(highlightIndex, highlightIndex + normalizedHighlight.length);
-  const after = text.slice(highlightIndex + normalizedHighlight.length);
+const ReadingText = ({ text, stems, words }: { text: string; stems: Set<string>; words: Set<string> }) => {
+  const parts = text.split(/(\s+)/);
 
   return (
     <p className="select-text text-[15px] leading-relaxed text-foreground/85">
-      {renderTargetWords(before, stems, words, "before")}
-      <mark className="rounded-md bg-primary/35 px-1 py-0.5 text-foreground shadow-inner shadow-primary/25">
-        {renderTargetWords(selection, stems, words, "selected")}
-      </mark>
-      {renderTargetWords(after, stems, words, "after")}
+      {parts.map((part, index) => {
+        if (/^\s+$/.test(part)) return <span key={`${part}-${index}`}>{part}</span>;
+
+        const clean = part.replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "");
+        const lower = clean.toLowerCase();
+        const stem = normalizeStem(lower);
+        const isTargetWord = words.has(lower) || (stem.length >= 4 && stems.has(stem));
+
+        if (!isTargetWord) return <span key={`${part}-${index}`}>{part}</span>;
+
+        return (
+          <strong key={`${part}-${index}`} className="font-bold text-black dark:text-white">
+            {part}
+          </strong>
+        );
+      })}
     </p>
   );
 };
@@ -202,7 +184,6 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
     const normalized = selectedText.replace(/\s+/g, " ").trim();
     if (!normalized) return;
 
-    setHighlightedSelection(normalized);
     const contextSentence = findSentenceContainingSelection(text, normalized);
     void requestWordAnalysis(normalized, contextSentence);
     selection?.removeAllRanges();
@@ -254,71 +235,41 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
             <h1 className="text-xl font-bold tracking-tight text-foreground">Generated Learning Text</h1>
 
             <div className="mt-4 rounded-2xl glass p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-foreground">Generate Text</p>
-                <button
-                  type="button"
-                  onClick={() => setControlsCollapsed((prev) => !prev)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-background/50 px-2 py-1 text-xs font-semibold text-muted-foreground"
-                >
-                  {controlsCollapsed ? "Expand" : "Collapse"}
-                  {controlsCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                </button>
+              <p className="text-sm font-semibold text-foreground">Generate Text</p>
+              <label className="mt-3 block text-xs text-muted-foreground" htmlFor="story-prompt">Optional story idea</label>
+              <input
+                id="story-prompt"
+                value={storyPrompt}
+                onChange={(event) => setStoryPrompt(event.target.value)}
+                placeholder="e.g., A travel story in the mountains"
+                className="mt-1 w-full rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary"
+              />
+
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/40 px-3 py-2">
+                <p className="text-sm font-semibold text-foreground">Allow different word forms</p>
+                <Switch checked={allowWordForms} onCheckedChange={setAllowWordForms} />
               </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">Example writing, write and writing.</p>
 
-              {controlsCollapsed ? (
-                <button
-                  onClick={generateText}
-                  disabled={loading || selectedWords.length === 0}
-                  className="mt-3 w-full rounded-xl bg-primary btn-primary-glow px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-                >
-                  {loading ? (
-                    <span className="inline-flex items-center gap-2">
-                      <RefreshCw size={18} className="animate-spin" />
-                      Generating...
-                    </span>
-                  ) : (
-                    "Regenerate Text"
-                  )}
-                </button>
-              ) : (
-                <>
-                  <label className="mt-3 block text-xs text-muted-foreground" htmlFor="story-prompt">Optional story idea</label>
-                  <input
-                    id="story-prompt"
-                    value={storyPrompt}
-                    onChange={(event) => setStoryPrompt(event.target.value)}
-                    placeholder="e.g., A travel story in the mountains"
-                    className="mt-1 w-full rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary"
-                  />
-
-                  <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/40 px-3 py-2">
-                    <p className="text-sm font-semibold text-foreground">Allow different word forms</p>
-                    <Switch checked={allowWordForms} onCheckedChange={setAllowWordForms} />
-                  </div>
-                  <p className="mt-1.5 text-xs text-muted-foreground">Example writing, write and writing.</p>
-
-                  <button
-                    onClick={generateText}
-                    disabled={loading || selectedWords.length === 0}
-                    className="mt-4 w-full rounded-xl bg-primary btn-primary-glow px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-                  >
-                    {loading ? (
-                      <span className="inline-flex items-center gap-2">
-                        <RefreshCw size={18} className="animate-spin" />
-                        Generating...
-                      </span>
-                    ) : text ? (
-                      <span className="inline-flex items-center gap-2">
-                        <RefreshCw size={16} />
-                        Re-generate Text
-                      </span>
-                    ) : (
-                      "Generate Text"
-                    )}
-                  </button>
-                </>
-              )}
+              <button
+                onClick={generateText}
+                disabled={loading || selectedWords.length === 0}
+                className="mt-4 w-full rounded-xl bg-primary btn-primary-glow px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw size={18} className="animate-spin" />
+                    Generating...
+                  </span>
+                ) : text ? (
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw size={16} />
+                    Re-generate Text
+                  </span>
+                ) : (
+                  "Generate Text"
+                )}
+              </button>
             </div>
 
             <div className="mt-3 overflow-y-auto pb-4">
