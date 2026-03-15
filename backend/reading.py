@@ -9,95 +9,30 @@ from urllib import error, request
 from flask import jsonify, request as flask_request
 
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
-DEFAULT_MODEL = "gpt-5.2"
+DEFAULT_MODEL = "gpt-5-mini"
 MIN_TOTAL_WORDS = 100
 MAX_TOTAL_WORDS = 120
 TARGET_TOTAL_WORDS = 110
 MAX_GENERATION_ATTEMPTS = 3
 
-READING_PROMPT_TEMPLATE = """You are an assistant that generates short learning texts for English learners.
-
-Input:
-- target_words: {target_words}
-- allow_word_forms: {allow_word_forms}
-- story_prompt: {story_prompt}
-- level: {english_level}
-
-Task:
-Generate a natural English text that includes ALL target words.
-
-Instructions:
-Step 1. Plan a short text that will contain 100-120 words.
-
-Step 2. Write the text.
-
-Step 3. Count the words in the generated text and ensure it is between 100 and 120 words (inclusive).
-If it does not match, regenerate the text.
+SYSTEM_PROMPT = """
+You are an assistant that generates short learning texts for English learners.
 
 Rules:
 
-1. The total length of the text must be between 100 and 120 words.
-
-2. Every target word MUST appear at least once in the text.
-
-3. If allow_word_forms = true:
-   - you may use different grammatical forms of the words
-   (plural, verb tenses, derived forms, etc.)
-
-4. If allow_word_forms = false:
-   - use the exact target words as written
-   - do not change their grammatical form
-
-5. The text must:
-   - sound natural
-   - be coherent
-   - be understandable for an English learner
-   - match the learner level in `level`
-   - avoid unnecessary complexity
-
-6. Do NOT list the words separately.
-   They must appear naturally inside the text.
-
-7. The text MUST contain between 100 and 120 words (inclusive).
-
-8. If story_prompt is provided (non-empty), use it as the topic or setting for the text.
-
-Example 1:
-
-Input:
-target_words: deployment, correspond, satisfy, retrieve
-allow_word_forms: false
-
-Output:
-{{
-  "text": "The engineering team prepared a careful deployment late on Friday evening. Every step had to correspond exactly to the checklist created earlier in the week. Their goal was simple: satisfy the client and avoid unexpected problems.
-
-Before starting, one developer needed to retrieve several configuration files from the internal server. These files helped the system correspond correctly with external services after the deployment. Once everything was ready, the team ran the final commands and watched the update complete successfully.
-
-The result was stable and efficient. The logs helped retrieve useful performance data, and the solution continued to satisfy the needs of the users."
-}}
-
-
-Example 2:
-
-Input:
-target_words: deploy, correspond, satisfy, retrieve
-allow_word_forms: true
-
-Output:
-{{
-  "text": "A small software team planned to deploy a new feature for their analytics platform. The engineers checked that the system configuration corresponded with the documentation before starting the update. Their main goal was to satisfy the company’s growing number of users.
-
-During the process, the monitoring service retrieved several error reports from the server. One developer carefully reviewed the data and noticed that a few values did not correspond to the expected results. After fixing the issue, the team deployed the update successfully.
-
-The new version worked smoothly. The system could now retrieve information faster, and the improved performance helped satisfy the expectations of the product team."
-}}
+1. The total length must be 100–120 words.
+2. Every target word form must appear exactly once.
+3. Text must sound natural and coherent.
+4. Match the learner level.
+5. If allow_word_forms=false use exact form.
+6. If allow_word_forms=true grammatical forms allowed.
+7. Do not list words separately.
+8. Return JSON only.
 
 Output format:
-Return JSON only:
-{{
+{
   "text": "<generated text>"
-}}
+}
 """
 
 
@@ -146,8 +81,9 @@ def _load_local_env() -> None:
             os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-def _call_llm(prompt: str) -> dict[str, Any]:
+def _call_llm(system_prompt: str, user_prompt: str) -> dict[str, Any]:
     _load_local_env()
+
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ReadingLLMError("OPENAI_API_KEY is not set")
@@ -162,8 +98,10 @@ def _call_llm(prompt: str) -> dict[str, Any]:
         data=json.dumps(
             {
                 "model": os.getenv("OPENAI_MODEL", DEFAULT_MODEL),
-                "temperature": 0.7,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
                 "response_format": {"type": "json_object"},
             }
         ).encode("utf-8"),
@@ -172,11 +110,14 @@ def _call_llm(prompt: str) -> dict[str, Any]:
     try:
         with request.urlopen(req, timeout=40) as response:
             payload = json.loads(response.read().decode("utf-8"))
+
     except error.HTTPError as exc:
         details = exc.read().decode("utf-8", errors="ignore")
         raise ReadingLLMError(f"OpenAI HTTP error {exc.code}: {details}") from exc
+
     except error.URLError as exc:
         raise ReadingLLMError(f"OpenAI connection error: {exc.reason}") from exc
+
     except TimeoutError as exc:
         raise ReadingLLMError("OpenAI request timed out") from exc
 
@@ -186,6 +127,7 @@ def _call_llm(prompt: str) -> dict[str, Any]:
 
     message = choices[0].get("message") or {}
     content = message.get("content")
+
     if not content:
         raise ReadingLLMError("OpenAI response has empty content")
 
@@ -234,6 +176,7 @@ def register_reading_endpoints(app):
     @app.post("/api/reading/generate")
     def reading_generate():
         data = flask_request.get_json(silent=True) or {}
+
         target_words = _normalize_target_words(data.get("target_words"))
         if not target_words:
             return jsonify({"error": "target_words must be a non-empty array"}), 400
@@ -242,24 +185,34 @@ def register_reading_endpoints(app):
         story_prompt = str(data.get("story_prompt") or "").strip()
         english_level = str(data.get("level") or "B1").strip() or "B1"
 
-        prompt = READING_PROMPT_TEMPLATE.format(
-            target_words=", ".join(target_words),
-            allow_word_forms=str(allow_word_forms).lower(),
-            story_prompt=story_prompt if story_prompt else "not provided",
-            english_level=english_level,
-        )
+        user_prompt = f"""
+    Input:
+
+    target_words: {", ".join(target_words)}
+    allow_word_forms: {str(allow_word_forms).lower()}
+    story_prompt: {story_prompt if story_prompt else "not provided"}
+    level: {english_level}
+
+    Generate a natural English learning text.
+    """
 
         text = ""
         generation_error: ReadingLLMError | None = None
+
         for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
             try:
-                llm_response = _call_llm(prompt)
+                llm_response = _call_llm(SYSTEM_PROMPT, user_prompt)
+
                 text = str(llm_response.get("text") or "").strip()
+
                 if not text:
                     raise ReadingLLMError("LLM returned empty text")
+
                 _validate_generated_text(text, target_words, allow_word_forms)
+
                 generation_error = None
                 break
+
             except ReadingLLMError as exc:
                 generation_error = exc
                 print(
