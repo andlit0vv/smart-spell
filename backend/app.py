@@ -3,7 +3,7 @@ import json
 import os
 import re
 from typing import Any
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import urlencode
 
 from flask import Flask, jsonify, request
 import psycopg2
@@ -12,6 +12,7 @@ from db import get_db_cursor
 from dialog import register_dialog_endpoints
 from llm import LLMError, analyze_term
 from reading import register_reading_endpoints
+from auth import get_or_create_user, normalize_telegram_id, resolve_current_user
 
 app = Flask(__name__)
 register_dialog_endpoints(app)
@@ -131,107 +132,22 @@ def _replace_word_topics(user_id: int, word: str, topics: list[str]) -> list[str
             (user_id, normalized_word),
         )
         rows = cursor.fetchall()
+        saved_topics = [row['topic'] for row in rows]
 
-    return [row['topic'] for row in rows]
-
-
-def _parse_telegram_init_data(raw_init_data: str) -> dict[str, Any]:
-    params = parse_qs(raw_init_data, keep_blank_values=True)
-    user_payload = params.get('user', [''])[0]
-    if not user_payload:
-        return {}
-
-    try:
-        user = json.loads(user_payload)
-    except json.JSONDecodeError:
-        return {}
-
-    return {
-        'telegram_id': user.get('id'),
-        'username': user.get('username'),
-        'first_name': user.get('first_name'),
-    }
-
-
-def _normalize_telegram_id(raw_value: Any) -> int:
-    try:
-        telegram_id = int(str(raw_value).strip())
-    except (TypeError, ValueError) as error:
-        raise ValueError('Telegram user id must be a positive integer.') from error
-
-    if telegram_id <= 0:
-        raise ValueError('Telegram user id must be positive.')
-
-    return telegram_id
-
-
-def resolve_telegram_context() -> dict[str, Any]:
-    init_data = request.headers.get('X-Telegram-Init-Data', '').strip()
-    parsed_init_data = _parse_telegram_init_data(init_data) if init_data else {}
-
-    header_id = request.headers.get('X-Telegram-Id', '').strip()
-    query_id = (request.args.get('telegram_id') or '').strip()
-    env_id = os.getenv('LOCAL_TEST_TELEGRAM_ID', '').strip()
-
-    raw_id = header_id or query_id or parsed_init_data.get('telegram_id') or env_id
-    if not raw_id:
-        raise ValueError(
-            'Telegram user id is missing. Provide X-Telegram-Init-Data/X-Telegram-Id '
-            'or set LOCAL_TEST_TELEGRAM_ID.'
-        )
-
-    telegram_id = _normalize_telegram_id(raw_id)
-
-    username = (
-        request.headers.get('X-Telegram-Username', '').strip()
-        or (parsed_init_data.get('username') or '').strip()
-        or os.getenv('LOCAL_TEST_USERNAME', '').strip()
-        or f'local_{telegram_id}'
-    )
-    first_name = (
-        request.headers.get('X-Telegram-First-Name', '').strip()
-        or (parsed_init_data.get('first_name') or '').strip()
-        or os.getenv('LOCAL_TEST_FIRST_NAME', '').strip()
-        or 'Local Tester'
-    )
-
-    return {
-        'telegram_id': telegram_id,
-        'username': username,
-        'first_name': first_name,
-        'is_test_user': not bool(init_data),
-    }
-
-
-def get_or_create_user(context: dict[str, Any]) -> dict[str, Any]:
-    with get_db_cursor(commit=True) as cursor:
         cursor.execute(
             '''
-            INSERT INTO users (telegram_id, username, first_name, is_test_user)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (telegram_id)
-            DO UPDATE SET
-                username = COALESCE(NULLIF(EXCLUDED.username, ''), users.username),
-                first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), users.first_name),
-                is_test_user = EXCLUDED.is_test_user,
-                updated_at = NOW()
-            RETURNING id, telegram_id, username, first_name, is_test_user
+            UPDATE dictionary_words
+            SET topic = %s, updated_at = NOW()
+            WHERE user_id = %s AND normalized_word = %s
             ''',
-            (
-                context['telegram_id'],
-                context['username'],
-                context['first_name'],
-                context['is_test_user'],
-            ),
+            ('/'.join(saved_topics), user_id, normalized_word),
         )
-        return dict(cursor.fetchone())
+
+    return saved_topics
 
 
-def resolve_current_user() -> dict[str, Any]:
-    return get_or_create_user(resolve_telegram_context())
 
-
-def fetch_user_profile(user_id: int) -> dict[str, str]:
+def fetch_user_profile(user_id: int, fallback_name: str = "", avatar_url: str = "") -> dict[str, str]:
     with get_db_cursor() as cursor:
         cursor.execute(
             '''
@@ -244,12 +160,14 @@ def fetch_user_profile(user_id: int) -> dict[str, str]:
         row = cursor.fetchone()
 
     if not row:
-        return {'name': '', 'bio': '', 'englishLevel': ''}
+        return {'name': fallback_name or '', 'bio': '', 'englishLevel': '', 'avatarUrl': avatar_url or ''}
 
+    resolved_name = row.get('display_name') or fallback_name or ''
     return {
-        'name': row.get('display_name') or '',
+        'name': resolved_name,
         'bio': row.get('bio') or '',
         'englishLevel': row.get('english_level') or '',
+        'avatarUrl': avatar_url or '',
     }
 
 
@@ -282,11 +200,11 @@ def handle_db_operational_error(error: psycopg2.OperationalError):
 @app.get('/api/profile')
 def get_profile():
     try:
-        user = resolve_current_user()
+        user = resolve_current_user(request)
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
-    return jsonify({'profile': fetch_user_profile(user['id']), 'user': user})
+    return jsonify({'profile': fetch_user_profile(user['id'], fallback_name=user.get('first_name', ''), avatar_url=user.get('photo_url', '')), 'user': user})
 
 
 @app.post('/api/profile')
@@ -294,7 +212,7 @@ def save_profile():
     data = request.get_json(silent=True) or {}
 
     try:
-        user = resolve_current_user()
+        user = resolve_current_user(request)
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
@@ -303,7 +221,7 @@ def save_profile():
     incoming_level = (data.get('englishLevel') or '').strip()
     force_update_level = bool(data.get('forceUpdateEnglishLevel', False))
 
-    current_profile = fetch_user_profile(user['id'])
+    current_profile = fetch_user_profile(user['id'], fallback_name=user.get('first_name', ''), avatar_url=user.get('photo_url', ''))
     if current_profile['englishLevel'] and incoming_level and not force_update_level:
         return jsonify({
             'error': 'englishLevel is already set. Use forceUpdateEnglishLevel to change it.',
@@ -329,13 +247,13 @@ def save_profile():
             (user['id'], next_name, next_bio, next_level),
         )
 
-    return jsonify({'message': 'Profile saved', 'profile': fetch_user_profile(user['id'])})
+    return jsonify({'message': 'Profile saved', 'profile': fetch_user_profile(user['id'], fallback_name=user.get('first_name', ''), avatar_url=user.get('photo_url', ''))})
 
 
 @app.get('/api/dictionary')
 def get_dictionary():
     try:
-        user = resolve_current_user()
+        user = resolve_current_user(request)
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
@@ -395,7 +313,7 @@ def add_dictionary_word():
         return jsonify({'error': 'word and definition are required'}), 400
 
     try:
-        user = resolve_current_user()
+        user = resolve_current_user(request)
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
@@ -438,6 +356,51 @@ def add_dictionary_word():
     })
 
 
+
+
+def _delete_words_from_dictionary(user_id: int, words: list[str]) -> dict[str, Any]:
+    normalized_pairs: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for raw_word in words:
+        word = (raw_word or '').strip()
+        if not word:
+            continue
+        normalized = normalize_word(word)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        normalized_pairs.append((word, normalized))
+
+    if not normalized_pairs:
+        return {'deletedCount': 0, 'deletedWords': []}
+
+    normalized_words = [item[1] for item in normalized_pairs]
+
+    with get_db_cursor(commit=True) as cursor:
+        cursor.execute(
+            '''
+            DELETE FROM dictionary_word_topics
+            WHERE user_id = %s AND normalized_word = ANY(%s::text[])
+            ''',
+            (user_id, normalized_words),
+        )
+
+        cursor.execute(
+            '''
+            DELETE FROM dictionary_words
+            WHERE user_id = %s AND normalized_word = ANY(%s::text[])
+            RETURNING word, normalized_word
+            ''',
+            (user_id, normalized_words),
+        )
+        deleted_rows = cursor.fetchall()
+
+    deleted_map = {row['normalized_word']: row['word'] for row in deleted_rows}
+    deleted_words = [deleted_map[item[1]] for item in normalized_pairs if item[1] in deleted_map]
+    return {'deletedCount': len(deleted_words), 'deletedWords': deleted_words}
+
+
 @app.delete('/api/dictionary')
 def delete_dictionary_word():
     data = request.get_json(silent=True) or {}
@@ -446,24 +409,37 @@ def delete_dictionary_word():
         return jsonify({'error': 'word is required'}), 400
 
     try:
-        user = resolve_current_user()
+        user = resolve_current_user(request)
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
-    with get_db_cursor(commit=True) as cursor:
-        cursor.execute(
-            '''
-            DELETE FROM dictionary_words
-            WHERE user_id = %s AND normalized_word = %s
-            RETURNING id
-            ''',
-            (user['id'], normalize_word(word)),
-        )
-        deleted = cursor.fetchone()
-
-    if not deleted:
+    result = _delete_words_from_dictionary(user['id'], [word])
+    if result['deletedCount'] == 0:
         return jsonify({'error': 'Word not found'}), 404
-    return jsonify({'message': 'Word deleted'})
+
+    return jsonify({'message': 'Word deleted', 'deletedWords': result['deletedWords'], 'deletedCount': result['deletedCount']})
+
+
+@app.post('/api/dictionary/learned')
+def mark_dictionary_words_learned():
+    data = request.get_json(silent=True) or {}
+    raw_words = data.get('words')
+    if not isinstance(raw_words, list):
+        return jsonify({'error': 'words must be an array'}), 400
+
+    try:
+        user = resolve_current_user(request)
+    except (RuntimeError, ValueError) as error:
+        return _json_bad_request(error)
+
+    words = [str(item) for item in raw_words]
+    result = _delete_words_from_dictionary(user['id'], words)
+
+    return jsonify({
+        'message': 'Words marked as learned',
+        'deletedWords': result['deletedWords'],
+        'deletedCount': result['deletedCount'],
+    })
 
 
 @app.patch('/api/dictionary/topics')
@@ -475,7 +451,7 @@ def update_dictionary_word_topics():
 
     try:
         topics = _parse_topics(data.get('topics'))
-        user = resolve_current_user()
+        user = resolve_current_user(request)
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
@@ -497,10 +473,41 @@ def update_dictionary_word_topics():
     return jsonify({'message': 'Topics updated', 'word': word, 'topics': saved_topics})
 
 
+
+@app.post('/api/topics')
+def create_topic():
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+
+    try:
+        user = resolve_current_user(request)
+    except (RuntimeError, ValueError) as error:
+        return _json_bad_request(error)
+
+    with get_db_cursor(commit=True) as cursor:
+        cursor.execute(
+            '''
+            INSERT INTO topics (user_id, name, normalized_name)
+            VALUES (%s, %s, lower(%s))
+            ON CONFLICT (user_id, normalized_name)
+            DO UPDATE SET
+                name = EXCLUDED.name,
+                updated_at = NOW()
+            RETURNING id, name
+            ''',
+            (user['id'], name, name),
+        )
+        row = cursor.fetchone()
+
+    return jsonify({'message': 'Topic saved', 'topic': {'id': row['id'], 'name': row['name']}})
+
+
 @app.get('/api/topics')
 def get_topics():
     try:
-        user = resolve_current_user()
+        user = resolve_current_user(request)
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
@@ -526,7 +533,7 @@ def get_topics():
 def create_test_user_starter_pack():
     data = request.get_json(silent=True) or {}
 
-    telegram_id = _normalize_telegram_id(data.get('telegramId') or os.getenv('LOCAL_TEST_TELEGRAM_ID') or 1000000001)
+    telegram_id = normalize_telegram_id(data.get('telegramId') or os.getenv('LOCAL_TEST_TELEGRAM_ID') or 1000000001)
     username = (data.get('username') or os.getenv('LOCAL_TEST_USERNAME') or f'local_{telegram_id}').strip()
     first_name = (data.get('firstName') or os.getenv('LOCAL_TEST_FIRST_NAME') or 'Local').strip()
 
@@ -575,17 +582,18 @@ def health_check():
 def translation_input():
     data = request.get_json(silent=True) or {}
     word = (data.get('word') or '').strip()
+    context_sentence = str(data.get('context_sentence') or '').strip()
     if not word:
         return jsonify({'error': 'word is required'}), 400
 
     try:
-        user = resolve_current_user()
+        user = resolve_current_user(request)
         profile = fetch_user_profile(user['id'])
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
     try:
-        analysis = analyze_term(word, user_bio=profile.get('bio', ''), user_level=profile.get('englishLevel', ''))
+        analysis = analyze_term(word, user_bio=profile.get('bio', ''), user_level=profile.get('englishLevel', ''), context_sentence=context_sentence)
     except LLMError as error:
         return jsonify({'error': str(error)}), 502
 

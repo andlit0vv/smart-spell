@@ -1,4 +1,5 @@
 const LOCAL_INIT_DATA_KEY = "telegram_init_data";
+export const DICTIONARY_UPDATED_EVENT = "dictionary:updated";
 
 declare global {
   interface Window {
@@ -33,3 +34,7 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
     headers,
   });
 }
+
+export const notifyDictionaryUpdated = () => {
+  window.dispatchEvent(new CustomEvent(DICTIONARY_UPDATED_EVENT));
+};

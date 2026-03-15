@@ -3,7 +3,7 @@ import { ArrowRight, Languages, BarChart3, FileText, RefreshCw } from "lucide-re
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, notifyDictionaryUpdated } from "@/lib/api";
 
 interface TranslationScreenProps {
   theme: "light" | "dark";
@@ -99,6 +99,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
         }
 
         setConnectionMessage("Word added to dictionary");
+        notifyDictionaryUpdated();
         setResult(null);
         setWord("");
       } catch (error) {
