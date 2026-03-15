@@ -5,7 +5,7 @@ import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
 import DialogueTraining from "./DialogueTraining";
 import ThemeToggle from "./ThemeToggle";
-import { DICTIONARY_UPDATED_EVENT, apiFetch, notifyDictionaryUpdated } from "@/lib/api";
+import { DICTIONARY_UPDATED_EVENT, apiFetch } from "@/lib/api";
 
 interface WordData {
   word: string;
@@ -199,7 +199,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
   const allCategories = useMemo(() => Object.values(categoriesById), [categoriesById]);
 
-  const visibleCategories = useMemo(() => allCategories.slice().sort((a, b) => a.name.localeCompare(b.name)), [allCategories]);
+  const visibleCategories = allCategories.sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredWords = useMemo(() => words.filter((word) => {
     if (categoryFilters.size === 0) return true;
@@ -210,7 +210,10 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const selectedWords = words.filter((w) => selected.has(w.word));
 
   useEffect(() => {
-    if (categoryFilters.size === 0) return;
+    if (categoryFilters.size === 0) {
+      setSelected((prev) => (prev.size === 0 ? prev : new Set()));
+      return;
+    }
 
     setSelected((prev) => {
       const next = new Set(prev);
@@ -235,48 +238,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
       else next.add(categoryId);
       return next;
     });
-  };
-
-  const handleDeleteSelectedCategories = async () => {
-    const selectedCategoryIds = Array.from(categoryFilters);
-    if (selectedCategoryIds.length === 0) return;
-
-    const selectedCategoryNames = selectedCategoryIds
-      .map((id) => categoriesById[id]?.name)
-      .filter(Boolean) as string[];
-
-    if (selectedCategoryNames.length === 0) return;
-
-    try {
-      const response = await apiFetch("/api/topics", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topics: selectedCategoryNames }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Failed to delete categories");
-
-      setCategoriesById((prev) => {
-        const next = { ...prev };
-        selectedCategoryIds.forEach((id) => {
-          delete next[id];
-        });
-        return next;
-      });
-
-      setWordCategoryIds((prev) => {
-        const next: Record<string, string[]> = {};
-        Object.entries(prev).forEach(([word, ids]) => {
-          next[word] = ids.filter((id) => !categoryFilters.has(id));
-        });
-        return next;
-      });
-
-      setCategoryFilters(new Set());
-      notifyDictionaryUpdated();
-    } catch (error) {
-      console.error("[Dictionary] Failed to delete categories", error);
-    }
   };
 
   const handleMarkLearned = async () => {
@@ -328,15 +289,10 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   };
 
   const toggleWordCategory = async (word: string, categoryId: string) => {
-    const previousTopics = wordCategoryIds[word] ?? [];
-    const nextTopics = previousTopics.includes(categoryId)
-      ? previousTopics.filter((id) => id !== categoryId)
-      : [...previousTopics, categoryId];
-
-    setWordCategoryIds((prev) => ({
-      ...prev,
-      [word]: nextTopics,
-    }));
+    const current = wordCategoryIds[word] ?? [];
+    const nextTopics = current.includes(categoryId)
+      ? current.filter((id) => id !== categoryId)
+      : [...current, categoryId];
 
     const topicNames = nextTopics.map((id) => categoriesById[id]?.name).filter(Boolean);
 
@@ -363,10 +319,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
       }));
       notifyDictionaryUpdated();
     } catch (error) {
-      setWordCategoryIds((prev) => ({
-        ...prev,
-        [word]: previousTopics,
-      }));
       console.error("[Dictionary] Failed to toggle word category", error);
     }
   };

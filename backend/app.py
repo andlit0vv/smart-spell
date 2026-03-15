@@ -143,47 +143,7 @@ def _replace_word_topics(user_id: int, word: str, topics: list[str]) -> list[str
             ('/'.join(saved_topics), user_id, normalized_word),
         )
 
-
-
-
-def _refresh_dictionary_topic_column(user_id: int, normalized_words: list[str]) -> None:
-    if not normalized_words:
-        return
-
-    with get_db_cursor(commit=True) as cursor:
-        cursor.execute(
-            '''
-            UPDATE dictionary_words dw
-            SET topic = COALESCE(agg.topic_value, ''),
-                updated_at = NOW()
-            FROM (
-                SELECT dwt.normalized_word, string_agg(t.name, '/' ORDER BY t.name) AS topic_value
-                FROM dictionary_word_topics dwt
-                JOIN topics t ON t.id = dwt.topic_id
-                WHERE dwt.user_id = %s AND dwt.normalized_word = ANY(%s::text[])
-                GROUP BY dwt.normalized_word
-            ) AS agg
-            WHERE dw.user_id = %s
-              AND dw.normalized_word = ANY(%s::text[])
-              AND dw.normalized_word = agg.normalized_word
-            ''',
-            (user_id, normalized_words, user_id, normalized_words),
-        )
-
-        cursor.execute(
-            '''
-            UPDATE dictionary_words
-            SET topic = '', updated_at = NOW()
-            WHERE user_id = %s
-              AND normalized_word = ANY(%s::text[])
-              AND normalized_word NOT IN (
-                SELECT normalized_word
-                FROM dictionary_word_topics
-                WHERE user_id = %s AND normalized_word = ANY(%s::text[])
-              )
-            ''',
-            (user_id, normalized_words, user_id, normalized_words),
-        )
+    return saved_topics
 
 
 
@@ -445,6 +405,7 @@ def _delete_words_from_dictionary(user_id: int, words: list[str]) -> dict[str, A
 def delete_dictionary_word():
     data = request.get_json(silent=True) or {}
     word = (data.get('word') or '').strip()
+    context_sentence = str(data.get('context_sentence') or '').strip()
     if not word:
         return jsonify({'error': 'word is required'}), 400
 
@@ -468,7 +429,7 @@ def mark_dictionary_words_learned():
         return jsonify({'error': 'words must be an array'}), 400
 
     try:
-        user = resolve_current_user(request)
+        user = resolve_current_user()
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
@@ -486,6 +447,7 @@ def mark_dictionary_words_learned():
 def update_dictionary_word_topics():
     data = request.get_json(silent=True) or {}
     word = (data.get('word') or '').strip()
+    context_sentence = str(data.get('context_sentence') or '').strip()
     if not word:
         return jsonify({'error': 'word is required'}), 400
 
@@ -542,61 +504,6 @@ def create_topic():
         row = cursor.fetchone()
 
     return jsonify({'message': 'Topic saved', 'topic': {'id': row['id'], 'name': row['name']}})
-
-
-
-@app.delete('/api/topics')
-def delete_topics():
-    data = request.get_json(silent=True) or {}
-
-    try:
-        topic_names = _parse_topics(data.get('topics'))
-    except ValueError as error:
-        return _json_bad_request(error)
-
-    if not topic_names:
-        return jsonify({'error': 'topics are required'}), 400
-
-    try:
-        user = resolve_current_user(request)
-    except (RuntimeError, ValueError) as error:
-        return _json_bad_request(error)
-
-    normalized_topics = [topic.lower() for topic in topic_names]
-
-    with get_db_cursor(commit=True) as cursor:
-        cursor.execute(
-            '''
-            SELECT dwt.normalized_word
-            FROM dictionary_word_topics dwt
-            JOIN topics t ON t.id = dwt.topic_id
-            WHERE t.user_id = %s AND t.normalized_name = ANY(%s::text[])
-            ''',
-            (user['id'], normalized_topics),
-        )
-        affected_rows = cursor.fetchall()
-        affected_words = sorted({row['normalized_word'] for row in affected_rows})
-
-        cursor.execute(
-            '''
-            DELETE FROM topics
-            WHERE user_id = %s AND normalized_name = ANY(%s::text[])
-            RETURNING name, normalized_name
-            ''',
-            (user['id'], normalized_topics),
-        )
-        deleted_rows = cursor.fetchall()
-
-    if not deleted_rows:
-        return jsonify({'error': 'Topics not found'}), 404
-
-    _refresh_dictionary_topic_column(user['id'], affected_words)
-
-    return jsonify({
-        'message': 'Topics deleted',
-        'deletedTopics': [row['name'] for row in deleted_rows],
-        'deletedCount': len(deleted_rows),
-    })
 
 
 @app.get('/api/topics')
