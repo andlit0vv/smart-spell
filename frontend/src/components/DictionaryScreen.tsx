@@ -5,7 +5,7 @@ import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
 import DialogueTraining from "./DialogueTraining";
 import ThemeToggle from "./ThemeToggle";
-import { DICTIONARY_UPDATED_EVENT, apiFetch } from "@/lib/api";
+import { DICTIONARY_UPDATED_EVENT, apiFetch, notifyDictionaryUpdated } from "@/lib/api";
 
 interface WordData {
   word: string;
@@ -329,6 +329,11 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
       ? current.filter((id) => id !== categoryId)
       : [...current, categoryId];
 
+    setWordCategoryIds((prev) => ({
+      ...prev,
+      [word]: nextTopics,
+    }));
+
     const topicNames = nextTopics.map((id) => categoriesById[id]?.name).filter(Boolean);
 
     try {
@@ -354,6 +359,10 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
       }));
       notifyDictionaryUpdated();
     } catch (error) {
+      setWordCategoryIds((prev) => ({
+        ...prev,
+        [word]: current,
+      }));
       console.error("[Dictionary] Failed to toggle word category", error);
     }
   };
