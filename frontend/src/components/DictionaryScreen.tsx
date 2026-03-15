@@ -201,11 +201,11 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
   const visibleCategories = allCategories.sort((a, b) => a.name.localeCompare(b.name));
 
-  const filteredWords = words.filter((word) => {
+  const filteredWords = useMemo(() => words.filter((word) => {
     if (categoryFilters.size === 0) return true;
     const ids = wordCategoryIds[word.word] ?? [];
     return ids.some((id) => categoryFilters.has(id));
-  });
+  }), [words, categoryFilters, wordCategoryIds]);
 
   const selectedWords = words.filter((w) => selected.has(w.word));
 
@@ -379,9 +379,14 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category filters</p>
             {categoryFilters.size > 0 && (
-              <button type="button" onClick={() => setCategoryFilters(new Set())} className="text-xs font-semibold text-primary">
-                Clear
-              </button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleDeleteSelectedCategories} className="text-xs font-semibold text-destructive">
+                  Delete
+                </button>
+                <button type="button" onClick={() => setCategoryFilters(new Set())} className="text-xs font-semibold text-primary">
+                  Clear
+                </button>
+              </div>
             )}
           </div>
 
