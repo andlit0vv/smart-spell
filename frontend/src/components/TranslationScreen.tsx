@@ -74,9 +74,13 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   };
 
   const handleAdd = () => {
-    const saveWord = async () => {
-      if (!result) return;
+    if (!result) return;
 
+    const wordToSave = result;
+    setResult(null);
+    setWord("");
+
+    const saveWord = async () => {
       setConnectionError(null);
       setConnectionMessage(null);
 
@@ -87,9 +91,9 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            word: result.word,
-            definition: result.definition,
-            relevance: result.relevance,
+            word: wordToSave.word,
+            definition: wordToSave.definition,
+            relevance: wordToSave.relevance,
           }),
         });
 
@@ -100,8 +104,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
 
         setConnectionMessage("Word added to dictionary");
         notifyDictionaryUpdated();
-        setResult(null);
-        setWord("");
       } catch (error) {
         setConnectionError(error instanceof Error ? error.message : "Cannot connect to backend");
       }

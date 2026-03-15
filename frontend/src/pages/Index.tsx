@@ -7,6 +7,7 @@ import ProfileScreen from "@/components/ProfileScreen";
 import { useTheme } from "@/hooks/useTheme";
 import EnglishLevelModal from "@/components/EnglishLevelModal";
 import { apiFetch } from "@/lib/api";
+import AppLogo from "@/components/AppLogo";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<TabId>("dictionary");
@@ -77,6 +78,8 @@ const Index = () => {
 
   return (
     <div className="app-gradient-bg min-h-app bg-background transition-colors duration-300">
+      <AppLogo />
+
       {showFirstLevelModal ? (
         <EnglishLevelModal onComplete={handleFirstLevelSelect} confirmLabel="Start" />
       ) : null}
