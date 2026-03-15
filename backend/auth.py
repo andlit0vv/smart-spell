@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import os
 from typing import Any
 from urllib.parse import parse_qs
@@ -8,6 +9,8 @@ from urllib.parse import parse_qs
 from flask import Request
 
 from db import get_db_cursor
+
+logger = logging.getLogger(__name__)
 
 
 def parse_telegram_init_data(raw_init_data: str) -> dict[str, str]:
@@ -77,6 +80,16 @@ def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
     query_id = (flask_request.args.get("telegram_id") or "").strip()
     env_id = os.getenv("LOCAL_TEST_TELEGRAM_ID", "").strip()
 
+    logger.info(
+        "[Auth] Incoming Telegram auth payload | has_init_data=%s parsed_user_id=%s header_id=%s query_id=%s has_bot_token=%s verified=%s",
+        bool(init_data),
+        parsed_user.get("telegram_id"),
+        bool(header_id),
+        bool(query_id),
+        bool(bot_token),
+        is_verified,
+    )
+
     raw_id = header_id or query_id or parsed_user.get("telegram_id") or env_id
     if not raw_id:
         raise ValueError(
@@ -85,6 +98,9 @@ def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
         )
 
     telegram_id = normalize_telegram_id(raw_id)
+    logger.info("[Auth] Resolved telegram_id=%s source=%s", telegram_id, (
+        "header" if header_id else "query" if query_id else "init_data" if parsed_user.get("telegram_id") else "env"
+    ))
     username = (
         flask_request.headers.get("X-Telegram-Username", "").strip()
         or (parsed_user.get("username") or "").strip()
@@ -98,7 +114,7 @@ def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
         or "Local Tester"
     )
 
-    return {
+    context = {
         "telegram_id": telegram_id,
         "username": username,
         "first_name": first_name,
@@ -106,6 +122,14 @@ def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
         "is_test_user": not is_verified,
         "is_verified": is_verified,
     }
+    logger.info(
+        "[Auth] Final context telegram_id=%s username=%s first_name=%s is_test_user=%s",
+        context["telegram_id"],
+        context["username"],
+        context["first_name"],
+        context["is_test_user"],
+    )
+    return context
 
 
 def get_or_create_user(context: dict[str, Any]) -> dict[str, Any]:
