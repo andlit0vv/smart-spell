@@ -22,19 +22,29 @@ const ReadScreen = ({ theme, toggleTheme }: ReadScreenProps) => {
         <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
       </div>
 
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={() => setShowUploadModal(true)}
-        className="mt-5 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-primary btn-primary-glow py-3.5 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
-      >
-        <Upload size={18} />
-        Upload a Book
-      </motion.button>
+      <div className="relative mt-5 overflow-hidden rounded-3xl">
+        <div className="pointer-events-none select-none blur-[3px]">
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={() => setShowUploadModal(true)}
+            className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-primary btn-primary-glow py-3.5 text-[15px] font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform"
+          >
+            <Upload size={18} />
+            Upload a Book
+          </motion.button>
 
-      <div className="mt-10 flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-2xl glass p-8">
-          <BookOpen size={40} className="text-muted-foreground/40 mx-auto" />
-          <p className="mt-3 text-sm text-muted-foreground">No books uploaded yet</p>
+          <div className="mt-10 flex flex-col items-center justify-center py-12 text-center">
+            <div className="rounded-2xl glass p-8">
+              <BookOpen size={40} className="text-muted-foreground/40 mx-auto" />
+              <p className="mt-3 text-sm text-muted-foreground">No books uploaded yet</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute inset-0 flex items-center justify-center rounded-3xl bg-background/20 backdrop-blur-[1px]">
+          <div className="rounded-full border border-border/60 bg-background/85 px-6 py-2 text-sm font-semibold tracking-[0.25em] text-foreground shadow-sm">
+            SOON...
+          </div>
         </div>
       </div>
 
