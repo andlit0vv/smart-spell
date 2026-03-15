@@ -1,4 +1,3 @@
-const LOCAL_INIT_DATA_KEY = "telegram_init_data";
 export const DICTIONARY_UPDATED_EVENT = "dictionary:updated";
 
 declare global {
@@ -11,9 +10,13 @@ declare global {
             id?: number;
             username?: string;
             first_name?: string;
+            last_name?: string;
+            language_code?: string;
+            photo_url?: string;
           };
         };
         ready?: () => void;
+        expand?: () => void;
       };
     };
   }
@@ -21,18 +24,15 @@ declare global {
 
 function getTelegramInitData(): string {
   const webApp = window.Telegram?.WebApp;
-  const fromWebApp = webApp?.initData?.trim();
+  webApp?.ready?.();
+  webApp?.expand?.();
 
-  if (webApp?.ready) {
-    webApp.ready();
+  const initData = webApp?.initData?.trim() || "";
+  if (!initData) {
+    console.error("[Auth] Telegram initData is empty. Open the app from Telegram Mini App.");
   }
 
-  if (fromWebApp) {
-    localStorage.setItem(LOCAL_INIT_DATA_KEY, fromWebApp);
-    return fromWebApp;
-  }
-
-  return localStorage.getItem(LOCAL_INIT_DATA_KEY)?.trim() || "";
+  return initData;
 }
 
 export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -41,17 +41,6 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 
   if (initData && !headers.has("X-Telegram-Init-Data")) {
     headers.set("X-Telegram-Init-Data", initData);
-  }
-
-  const webAppUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  if (webAppUser?.id && !headers.has("X-Telegram-Id")) {
-    headers.set("X-Telegram-Id", String(webAppUser.id));
-  }
-  if (webAppUser?.username && !headers.has("X-Telegram-Username")) {
-    headers.set("X-Telegram-Username", webAppUser.username);
-  }
-  if (webAppUser?.first_name && !headers.has("X-Telegram-First-Name")) {
-    headers.set("X-Telegram-First-Name", webAppUser.first_name);
   }
 
   return fetch(input, {
