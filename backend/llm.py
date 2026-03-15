@@ -6,76 +6,40 @@ from urllib import error, request
 
 from llm_validation import LLMValidationError, TermAnalysis, validate_analysis_response
 
-OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
-DEFAULT_MODEL = "gpt-4.1-mini"
+import httpx
 
-PROMPT_TEMPLATE = """You are a linguistic analysis assistant for an English learner.
+OPENAI_API_URL = "https://api.openai.com/v1/responses"
+DEFAULT_MODEL = "gpt-5-nano"
+
+
+PROMPT_TEMPLATE = """
+You analyze vocabulary for an English learner.
 
 Input:
-- term: an English word or phrase
-- context_sentence: sentence where the term is used (optional)
-- user_profile_bio: free-form user description (profession, interests, goals)
-- user_level: current English level selected by user
+term: {term}
+context: {context_sentence}
+user_bio: {user_bio}
+level: {user_level}
 
-Your task is to analyze the term and return a JSON object with linguistic information.
+Return JSON only:
 
-Core learner context:
-- Learner level: {user_level}
-- Relevance must prioritize what is useful for the specified learner level right now.
-- Do NOT overrate advanced vocabulary that is above the selected level just because it is prestigious or nuanced.
-
-How to calculate relevance (0-10):
-Use a balanced score based on all 3 factors below:
-1) General everyday frequency in modern English.
-2) Practical usefulness for B1-B2 communication.
-3) Personal relevance to user_profile_bio (profession/interests/goals).
-
-Personalization rule:
-- If bio indicates IT/software/engineering, increase relevance for IT-related terms.
-- If bio indicates medicine/healthcare, increase relevance for medical terms.
-- Apply similar logic for other domains.
-- If bio is empty or vague, rely on factors (1) and (2).
-
-Calibration rule (important):
-- Be stricter with scores 8-10; reserve them for words truly common and high-value for B1-B2.
-- Rare/specialized or clearly advanced C1+ words should usually be lower (often around 4-6 unless strongly needed by user bio).
-- Avoid inflated scoring.
-
-Additional rules:
-1. Definition
-- Provide a short English definition (max 10 words, one sentence).
-- If term has multiple common meanings, include them concisely in one definition.
-
-2. Russian translation
-- Provide a short Russian translation in field "translationRu".
-- It must be strictly shorter than the English definition.
-- Keep it concise (usually 1-3 words) and natural.
-
-3. Examples
-- Generate natural English sentences demonstrating real usage.
-- At least 2 examples.
-- If term has multiple meanings, provide at least one example per meaning.
-- Sentences must be clear and realistic.
-
-4. Output format
-- Return ONLY valid JSON. No explanations.
-
-JSON structure:
 {{
-  "term": "<input word or phrase>",
-  "relevance": <0-10>,
-  "definition": "<short definition in English>",
-  "translationRu": "<краткий перевод на русский>",
-  "examples": [
-    "<example sentence>",
-    "<example sentence>"
-  ]
+ "term": "",
+ "relevance": 0-10,
+ "definition": "",
+ "translationRu": "",
+ "examples": ["",""]
 }}
 
-term: {term}
-context_sentence: {context_sentence}
-user_profile_bio: {user_bio}
-user_level: {user_level}
+Rules:
+- definition ≤10 words
+- translation shorter than definition
+- at least 2 natural examples
+- relevance based on:
+  1) frequency in modern English
+  2) usefulness for B1-B2 communication
+  3) match with user_bio domain
+- avoid overrating rare/advanced words
 """
 
 
@@ -98,23 +62,38 @@ def _load_local_env() -> None:
             env_key = key.strip()
             env_value = value.strip().strip('"').strip("'")
             os.environ.setdefault(env_key, env_value)
+_load_local_env()
 
 
-def _extract_content(response_data: dict[str, Any]) -> str:
-    choices = response_data.get("choices") or []
-    if not choices:
-        raise LLMError("OpenAI response has no choices")
 
-    message = choices[0].get("message") or {}
-    content = message.get("content")
-    if not content:
-        raise LLMError("OpenAI response has empty content")
+def _extract_content(response_data):
+    try:
+        # Самый быстрый путь (новый Responses API)
+        if "output_text" in response_data:
+            text = response_data["output_text"]
 
-    return content
+            if isinstance(text, list):
+                return "".join(text)
+
+            if isinstance(text, str):
+                return text
+
+        # fallback
+        for item in response_data.get("output", []):
+            if item.get("type") == "message":
+                for part in item.get("content", []):
+                    if "text" in part:
+                        return part["text"]
+
+        raise LLMError("No text content in OpenAI response")
+
+    except Exception:
+        raise LLMError(f"Invalid OpenAI response format: {response_data}")
+
 
 
 def analyze_term(term: str, user_bio: str = "", user_level: str = "", context_sentence: str = "") -> TermAnalysis:
-    _load_local_env()
+
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise LLMError("OPENAI_API_KEY is not set")
@@ -127,14 +106,14 @@ def analyze_term(term: str, user_bio: str = "", user_level: str = "", context_se
     )
 
     request_payload = {
-        "model": os.getenv("OPENAI_MODEL", DEFAULT_MODEL),
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-        "response_format": {"type": "json_object"},
+        "model": "gpt-5-nano",
+        "input": prompt,
+        "max_output_tokens": 380,
+        "reasoning": {"effort": "minimal"},
+        "prompt_cache_key": "term-analysis-v1",
+        "text": {
+            "format": {"type": "json_object"},
+        }
     }
 
     req = request.Request(
@@ -159,7 +138,8 @@ def analyze_term(term: str, user_bio: str = "", user_level: str = "", context_se
         raise LLMError("OpenAI request timed out") from exc
 
     content = _extract_content(response_data)
-
+    if not content:
+        raise LLMError(f"LLM returned empty response: {response_data}")
     try:
         analysis_payload = json.loads(content)
     except json.JSONDecodeError as exc:
