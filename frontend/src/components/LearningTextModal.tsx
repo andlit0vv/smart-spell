@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import SelectionAnalysisCard, { type WordAnalysisCard } from "@/components/SelectionAnalysisCard";
 import { apiFetch, notifyDictionaryUpdated } from "@/lib/api";
@@ -87,7 +87,6 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
-  const [highlightedSelection, setHighlightedSelection] = useState("");
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
 
   const targetWordsSet = useMemo(() => new Set(selectedWords.map((word) => word.toLowerCase())), [selectedWords]);
@@ -99,7 +98,6 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
     setError("");
     setAnalysisCard(null);
     setAnalysisError("");
-    setHighlightedSelection("");
 
     try {
       const response = await apiFetch("/api/reading/generate", {
@@ -235,41 +233,61 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
             <h1 className="text-xl font-bold tracking-tight text-foreground">Generated Learning Text</h1>
 
             <div className="mt-4 rounded-2xl glass p-4">
-              <p className="text-sm font-semibold text-foreground">Generate Text</p>
-              <label className="mt-3 block text-xs text-muted-foreground" htmlFor="story-prompt">Optional story idea</label>
-              <input
-                id="story-prompt"
-                value={storyPrompt}
-                onChange={(event) => setStoryPrompt(event.target.value)}
-                placeholder="e.g., A travel story in the mountains"
-                className="mt-1 w-full rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary"
-              />
-
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/40 px-3 py-2">
-                <p className="text-sm font-semibold text-foreground">Allow different word forms</p>
-                <Switch checked={allowWordForms} onCheckedChange={setAllowWordForms} />
-              </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">Example writing, write and writing.</p>
-
               <button
-                onClick={generateText}
-                disabled={loading || selectedWords.length === 0}
-                className="mt-4 w-full rounded-xl bg-primary btn-primary-glow px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                type="button"
+                onClick={() => setControlsCollapsed((prev) => !prev)}
+                className="flex w-full items-center justify-between gap-3 text-left"
+                aria-expanded={!controlsCollapsed}
               >
-                {loading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <RefreshCw size={18} className="animate-spin" />
-                    Generating...
-                  </span>
-                ) : text ? (
-                  <span className="inline-flex items-center gap-2">
-                    <RefreshCw size={16} />
-                    Re-generate Text
-                  </span>
-                ) : (
-                  "Generate Text"
-                )}
+                <p className="text-sm font-semibold text-foreground">Generate Text</p>
+                {controlsCollapsed ? <ChevronDown size={18} className="text-muted-foreground" /> : <ChevronUp size={18} className="text-muted-foreground" />}
               </button>
+
+              <AnimatePresence initial={false}>
+                {!controlsCollapsed && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <label className="mt-3 block text-xs text-muted-foreground" htmlFor="story-prompt">Optional story idea</label>
+                    <input
+                      id="story-prompt"
+                      value={storyPrompt}
+                      onChange={(event) => setStoryPrompt(event.target.value)}
+                      placeholder="e.g., A travel story in the mountains"
+                      className="mt-1 w-full rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary"
+                    />
+
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/40 px-3 py-2">
+                      <p className="text-sm font-semibold text-foreground">Allow different word forms</p>
+                      <Switch checked={allowWordForms} onCheckedChange={setAllowWordForms} />
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">Example writing, write and writing.</p>
+
+                    <button
+                      onClick={generateText}
+                      disabled={loading || selectedWords.length === 0}
+                      className="mt-4 w-full rounded-xl bg-primary btn-primary-glow px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <span className="inline-flex items-center gap-2">
+                          <RefreshCw size={18} className="animate-spin" />
+                          Generating...
+                        </span>
+                      ) : text ? (
+                        <span className="inline-flex items-center gap-2">
+                          <RefreshCw size={16} />
+                          Re-generate Text
+                        </span>
+                      ) : (
+                        "Generate Text"
+                      )}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="mt-3 overflow-y-auto pb-4">
@@ -281,7 +299,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
               )}
               {text && (
                 <div className="mx-auto w-full max-w-[780px]" onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
-                  <ReadingText text={text} stems={targetStems} words={targetWordsSet} highlightedSelection={highlightedSelection} />
+                  <ReadingText text={text} stems={targetStems} words={targetWordsSet} />
                 </div>
               )}
             </div>
