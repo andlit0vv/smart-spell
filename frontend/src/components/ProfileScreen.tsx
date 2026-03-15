@@ -16,6 +16,7 @@ const ProfileScreen = ({ theme, toggleTheme, englishLevel, onEditEnglishLevel }:
   const [bio, setBio] = useState("");
   const [name, setName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState("");
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -23,8 +24,9 @@ const ProfileScreen = ({ theme, toggleTheme, englishLevel, onEditEnglishLevel }:
         const response = await apiFetch("/api/profile");
         if (!response.ok) return;
         const payload = await response.json();
-        setName(payload.profile?.name || "");
+        setName(payload.profile?.name || payload.user?.first_name || "");
         setBio(payload.profile?.bio || "");
+        setAvatarUrl(payload.profile?.avatarUrl || payload.user?.photo_url || "");
       } catch {
         // Keep profile screen usable even if backend is temporarily unreachable.
       }
@@ -84,9 +86,18 @@ const ProfileScreen = ({ theme, toggleTheme, englishLevel, onEditEnglishLevel }:
       >
         <div className="flex flex-col items-center">
           <div className="relative">
-            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-muted ring-4 ring-primary/20">
-              <span className="text-3xl font-bold text-muted-foreground">{name ? name.charAt(0).toUpperCase() : "?"}</span>
-            </div>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Telegram avatar"
+                className="h-24 w-24 rounded-full object-cover ring-4 ring-primary/20"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-muted ring-4 ring-primary/20">
+                <span className="text-3xl font-bold text-muted-foreground">{name ? name.charAt(0).toUpperCase() : "?"}</span>
+              </div>
+            )}
           </div>
           <h2 className="mt-3 text-lg font-bold text-foreground">{name || "Your Name"}</h2>
         </div>

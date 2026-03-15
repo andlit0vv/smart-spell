@@ -159,6 +159,37 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   }, [words]);
 
   useEffect(() => {
+    const loadTopics = async () => {
+      try {
+        const response = await apiFetch("/api/topics");
+        const payload = await response.json();
+        if (!response.ok || !Array.isArray(payload.topics)) return;
+
+        setCategoriesById((prev) => {
+          const next = { ...prev };
+          payload.topics.forEach((topic: { name?: string }) => {
+            const name = String(topic.name || "").trim();
+            if (!name) return;
+            const id = createCategoryId(name, "topic");
+            const previous = prev[id];
+            next[id] = {
+              id,
+              name,
+              group: "topic",
+              color: resolveCategoryColor(name, previous?.color),
+            };
+          });
+          return next;
+        });
+      } catch (error) {
+        console.error("[Dictionary] Failed to load topics", error);
+      }
+    };
+
+    void loadTopics();
+  }, []);
+
+  useEffect(() => {
     sessionStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(categoriesById));
   }, [categoriesById]);
 
@@ -185,9 +216,9 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     }
 
     setSelected((prev) => {
-      const next = new Set(filteredWords.map((item) => item.word));
-      const unchanged = prev.size === next.size && Array.from(next).every((word) => prev.has(word));
-      return unchanged ? prev : next;
+      const next = new Set(prev);
+      filteredWords.forEach((item) => next.add(item.word));
+      return next;
     });
   }, [categoryFilters, filteredWords]);
 
@@ -257,28 +288,66 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     setSelected(new Set());
   };
 
-  const toggleWordCategory = (word: string, categoryId: string) => {
-    setWordCategoryIds((prev) => {
-      const current = prev[word] ?? [];
-      return {
+  const toggleWordCategory = async (word: string, categoryId: string) => {
+    const current = wordCategoryIds[word] ?? [];
+    const nextTopics = current.includes(categoryId)
+      ? current.filter((id) => id !== categoryId)
+      : [...current, categoryId];
+
+    const topicNames = nextTopics.map((id) => categoriesById[id]?.name).filter(Boolean);
+
+    try {
+      const response = await apiFetch("/api/dictionary/topics", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          word,
+          topics: topicNames,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to update word topics");
+
+      const savedTopicNames: string[] = Array.isArray(payload.topics) ? payload.topics : topicNames;
+      const savedIds = savedTopicNames
+        .map((name) => allCategories.find((category) => category.name.toLowerCase() === String(name).toLowerCase())?.id)
+        .filter(Boolean) as string[];
+
+      setWordCategoryIds((prev) => ({
         ...prev,
-        [word]: current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
-      };
-    });
+        [word]: savedIds.length > 0 ? savedIds : nextTopics,
+      }));
+      notifyDictionaryUpdated();
+    } catch (error) {
+      console.error("[Dictionary] Failed to toggle word category", error);
+    }
   };
 
-  const createCategory = () => {
+  const createCategory = async () => {
     const trimmed = newCategoryName.trim();
     if (!trimmed) return;
     const id = createCategoryId(trimmed, "topic");
-    setCategoriesById((prev) => {
-      if (prev[id]) return prev;
-      return {
-        ...prev,
-        [id]: { id, name: trimmed, group: "topic", color: resolveCategoryColor(trimmed) },
-      };
-    });
-    setNewCategoryName("");
+
+    try {
+      const response = await apiFetch("/api/topics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to create topic");
+
+      setCategoriesById((prev) => {
+        if (prev[id]) return prev;
+        return {
+          ...prev,
+          [id]: { id, name: trimmed, group: "topic", color: resolveCategoryColor(trimmed) },
+        };
+      });
+      setNewCategoryName("");
+    } catch (error) {
+      console.error("[Dictionary] Failed to create category", error);
+    }
   };
 
   if (learningMode === "dialogue" && dialogueWords.length > 0) {
