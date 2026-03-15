@@ -489,7 +489,6 @@ def register_dialog_endpoints(app):
                     previous_question=previous_question or "none",
                 )
                 ,
-                temperature=0.6,
             )
         except DialogLLMError as exc:
             print(f"[Dialog] /question fallback due to LLM error: {exc}", flush=True)
