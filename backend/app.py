@@ -442,6 +442,7 @@ def add_dictionary_word():
 def delete_dictionary_word():
     data = request.get_json(silent=True) or {}
     word = (data.get('word') or '').strip()
+    context_sentence = str(data.get('context_sentence') or '').strip()
     if not word:
         return jsonify({'error': 'word is required'}), 400
 
@@ -470,6 +471,7 @@ def delete_dictionary_word():
 def update_dictionary_word_topics():
     data = request.get_json(silent=True) or {}
     word = (data.get('word') or '').strip()
+    context_sentence = str(data.get('context_sentence') or '').strip()
     if not word:
         return jsonify({'error': 'word is required'}), 400
 
@@ -575,6 +577,7 @@ def health_check():
 def translation_input():
     data = request.get_json(silent=True) or {}
     word = (data.get('word') or '').strip()
+    context_sentence = str(data.get('context_sentence') or '').strip()
     if not word:
         return jsonify({'error': 'word is required'}), 400
 
@@ -585,7 +588,7 @@ def translation_input():
         return _json_bad_request(error)
 
     try:
-        analysis = analyze_term(word, user_bio=profile.get('bio', ''), user_level=profile.get('englishLevel', ''))
+        analysis = analyze_term(word, user_bio=profile.get('bio', ''), user_level=profile.get('englishLevel', ''), context_sentence=context_sentence)
     except LLMError as error:
         return jsonify({'error': str(error)}), 502
 

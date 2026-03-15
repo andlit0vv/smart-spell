@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, RefreshCw, X } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { apiFetch } from "@/lib/api";
+import SelectionAnalysisCard, { type WordAnalysisCard } from "@/components/SelectionAnalysisCard";
+import { apiFetch, notifyDictionaryUpdated } from "@/lib/api";
 
 interface Props {
   open: boolean;
@@ -11,45 +11,10 @@ interface Props {
   onClose: () => void;
 }
 
-interface WordAnalysisCard {
-  word: string;
-  definition: string;
-  relevance: number;
-  examples: string[];
-  translationRu: string;
-  isInDictionary: boolean;
-}
-
 const normalizeStem = (word: string) => {
   let stem = word.toLowerCase().trim();
   const suffixes = [
-    "ization",
-    "isation",
-    "ational",
-    "ation",
-    "ition",
-    "ment",
-    "ness",
-    "ingly",
-    "edly",
-    "izing",
-    "ising",
-    "ized",
-    "ised",
-    "ing",
-    "ed",
-    "ize",
-    "ise",
-    "izer",
-    "iser",
-    "ly",
-    "ity",
-    "ty",
-    "al",
-    "ic",
-    "er",
-    "or",
-    "s",
+    "ization", "isation", "ational", "ation", "ition", "ment", "ness", "ingly", "edly", "izing", "ising", "ized", "ised", "ing", "ed", "ize", "ise", "izer", "iser", "ly", "ity", "ty", "al", "ic", "er", "or", "s",
   ];
 
   let changed = true;
@@ -68,11 +33,30 @@ const normalizeStem = (word: string) => {
   return stem;
 };
 
+const findSentenceContainingSelection = (text: string, selection: string) => {
+  const normalizedSelection = selection.trim();
+  if (!normalizedSelection) return "";
+
+  const searchIndex = text.toLowerCase().indexOf(normalizedSelection.toLowerCase());
+  if (searchIndex === -1) return "";
+
+  const before = text.slice(0, searchIndex);
+  const after = text.slice(searchIndex + normalizedSelection.length);
+
+  const leftBoundary = Math.max(before.lastIndexOf("."), before.lastIndexOf("!"), before.lastIndexOf("?"));
+  const rightCandidates = [after.indexOf("."), after.indexOf("!"), after.indexOf("?")].filter((i) => i >= 0);
+  const rightBoundary = rightCandidates.length ? Math.min(...rightCandidates) : -1;
+
+  const start = leftBoundary >= 0 ? leftBoundary + 1 : 0;
+  const end = rightBoundary >= 0 ? searchIndex + normalizedSelection.length + rightBoundary + 1 : text.length;
+  return text.slice(start, end).replace(/\s+/g, " ").trim();
+};
+
 const ReadingText = ({ text, stems, words }: { text: string; stems: Set<string>; words: Set<string> }) => {
   const parts = text.split(/(\s+)/);
 
   return (
-    <p className="text-[15px] leading-relaxed text-foreground/85 select-text">
+    <p className="select-text text-[15px] leading-relaxed text-foreground/85">
       {parts.map((part, index) => {
         if (/^\s+$/.test(part)) return <span key={`${part}-${index}`}>{part}</span>;
 
@@ -104,14 +88,8 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const [analysisError, setAnalysisError] = useState("");
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
 
-  const targetWordsSet = useMemo(
-    () => new Set(selectedWords.map((word) => word.toLowerCase())),
-    [selectedWords],
-  );
-  const targetStems = useMemo(
-    () => new Set(selectedWords.map((word) => normalizeStem(word)).filter((stem) => stem.length >= 4)),
-    [selectedWords],
-  );
+  const targetWordsSet = useMemo(() => new Set(selectedWords.map((word) => word.toLowerCase())), [selectedWords]);
+  const targetStems = useMemo(() => new Set(selectedWords.map((word) => normalizeStem(word)).filter((stem) => stem.length >= 4)), [selectedWords]);
 
   const generateText = async () => {
     if (!selectedWords.length) return;
@@ -133,7 +111,6 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
 
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to generate reading text");
-
       setText(payload.text || "");
     } catch (err) {
       console.error("[Reading] Failed to generate text", err);
@@ -147,16 +124,12 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const checkWordInDictionary = async (word: string) => {
     const response = await apiFetch("/api/dictionary");
     const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload.error || "Failed to load dictionary");
-    }
-
+    if (!response.ok) throw new Error(payload.error || "Failed to load dictionary");
     const existingWords = Array.isArray(payload.words) ? payload.words : [];
     return existingWords.some((item: { word?: string }) => item.word?.toLowerCase() === word.toLowerCase());
   };
 
-  const requestWordAnalysis = async (selectedText: string) => {
+  const requestWordAnalysis = async (selectedText: string, contextSentence: string) => {
     const normalizedSelection = selectedText.replace(/\s+/g, " ").trim();
     if (!normalizedSelection) return;
 
@@ -169,28 +142,29 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ word: normalizedSelection }),
+        body: JSON.stringify({
+          word: normalizedSelection,
+          context_sentence: contextSentence,
+        }),
       });
 
       const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || "Backend request failed");
-      }
+      if (!response.ok) throw new Error(payload.error || "Backend request failed");
 
       const analysis = payload.analysis;
-      if (!analysis) {
-        throw new Error("Backend returned no analysis");
-      }
+      if (!analysis) throw new Error("Backend returned no analysis");
 
-      const isInDictionary = await checkWordInDictionary(analysis.term || normalizedSelection);
+      const resolvedWord = analysis.term || normalizedSelection;
+      const isInDictionary = await checkWordInDictionary(resolvedWord);
 
       setAnalysisCard({
-        word: analysis.term || normalizedSelection,
+        word: resolvedWord,
         definition: analysis.definition,
         relevance: typeof analysis.relevance === "number" ? analysis.relevance : 0,
         examples: Array.isArray(analysis.examples) ? analysis.examples : [],
         translationRu: typeof analysis.translationRu === "string" ? analysis.translationRu : "",
         isInDictionary,
+        contextSentence,
       });
     } catch (requestError) {
       setAnalysisError(requestError instanceof Error ? requestError.message : "Cannot analyze selected text");
@@ -203,10 +177,11 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const handleTextSelection = () => {
     const selection = window.getSelection();
     const selectedText = selection?.toString() || "";
+    const normalized = selectedText.replace(/\s+/g, " ").trim();
+    if (!normalized) return;
 
-    if (!selectedText.trim()) return;
-
-    void requestWordAnalysis(selectedText);
+    const contextSentence = findSentenceContainingSelection(text, normalized);
+    void requestWordAnalysis(normalized, contextSentence);
     selection?.removeAllRanges();
   };
 
@@ -230,10 +205,9 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
       });
 
       const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || "Dictionary update failed");
-      }
+      if (!response.ok) throw new Error(payload.error || "Dictionary update failed");
 
+      notifyDictionaryUpdated();
       setAnalysisCard((prev) => (prev ? { ...prev, isInDictionary: !prev.isInDictionary } : prev));
     } catch (dictionaryError) {
       setAnalysisError(dictionaryError instanceof Error ? dictionaryError.message : "Cannot update dictionary");
@@ -245,12 +219,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] flex items-center justify-center px-5"
-        >
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center px-5">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
           <motion.div
             initial={{ y: 40, opacity: 0 }}
@@ -263,9 +232,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
 
             <div className="mt-4 rounded-2xl glass p-4">
               <p className="text-sm font-semibold text-foreground">Generate Text</p>
-              <label className="mt-3 block text-xs text-muted-foreground" htmlFor="story-prompt">
-                Optional story idea
-              </label>
+              <label className="mt-3 block text-xs text-muted-foreground" htmlFor="story-prompt">Optional story idea</label>
               <input
                 id="story-prompt"
                 value={storyPrompt}
@@ -278,9 +245,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
                 <p className="text-sm font-semibold text-foreground">Allow different word forms</p>
                 <Switch checked={allowWordForms} onCheckedChange={setAllowWordForms} />
               </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Example writing, write and writing.
-              </p>
+              <p className="mt-1.5 text-xs text-muted-foreground">Example writing, write and writing.</p>
 
               <button
                 onClick={generateText}
@@ -318,82 +283,23 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
             </div>
 
             <div className="pb-6 pt-3">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={onClose}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl glass py-3 text-sm font-semibold text-foreground transition-colors"
-              >
+              <motion.button whileTap={{ scale: 0.97 }} onClick={onClose} className="flex w-full items-center justify-center gap-2 rounded-2xl glass py-3 text-sm font-semibold text-foreground transition-colors">
                 <ArrowLeft size={16} />
                 Back to Dictionary
               </motion.button>
             </div>
 
-            <AnimatePresence>
-              {(analysisLoading || analysisError || analysisCard) && (
-                <motion.div
-                  initial={{ y: 24, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: 24, opacity: 0 }}
-                  className="absolute bottom-24 left-5 right-5 z-20 rounded-2xl glass-modal p-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-foreground">
-                        {analysisLoading ? "Analyzing..." : analysisCard?.word || "Selection details"}
-                      </p>
-                      {!analysisLoading && analysisCard?.translationRu && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button className="mt-1 rounded-md border border-border/60 bg-background/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition hover:text-foreground">
-                              Show translation
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent align="start" className="w-fit max-w-[180px] rounded-lg border-border/60 px-2.5 py-1.5 text-xs">
-                            <p className="font-semibold text-foreground">{analysisCard.translationRu}</p>
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        setAnalysisCard(null);
-                        setAnalysisError("");
-                      }}
-                      className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted btn-secondary-glass"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-
-                  {analysisError && <p className="mt-2 text-xs text-red-500">{analysisError}</p>}
-
-                  {!analysisLoading && analysisCard && (
-                    <>
-                      <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-foreground/85">{analysisCard.definition}</p>
-                      {analysisCard.examples.length > 0 && (
-                        <p className="mt-2 line-clamp-2 text-[11px] italic text-muted-foreground">{analysisCard.examples[0]}</p>
-                      )}
-                      <div className="mt-2 flex items-center justify-between gap-3">
-                        <span className="text-[11px] font-medium text-muted-foreground">Relevance: {analysisCard.relevance}/10</span>
-                        <button
-                          onClick={handleDictionaryAction}
-                          disabled={dictionaryLoading}
-                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60 ${
-                            analysisCard.isInDictionary ? "bg-red-500" : "bg-primary"
-                          }`}
-                        >
-                          {dictionaryLoading
-                            ? "..."
-                            : analysisCard.isInDictionary
-                              ? "Delete"
-                              : "Add"}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <SelectionAnalysisCard
+              analysisCard={analysisCard}
+              analysisLoading={analysisLoading}
+              analysisError={analysisError}
+              dictionaryLoading={dictionaryLoading}
+              onClose={() => {
+                setAnalysisCard(null);
+                setAnalysisError("");
+              }}
+              onDictionaryAction={() => void handleDictionaryAction()}
+            />
           </motion.div>
         </motion.div>
       )}

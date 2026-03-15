@@ -13,6 +13,7 @@ PROMPT_TEMPLATE = """You are a linguistic analysis assistant for an English lear
 
 Input:
 - term: an English word or phrase
+- context_sentence: sentence where the term is used (optional)
 - user_profile_bio: free-form user description (profession, interests, goals)
 - user_level: current English level selected by user
 
@@ -72,6 +73,7 @@ JSON structure:
 }
 
 term: {term}
+context_sentence: {context_sentence}
 user_profile_bio: {user_bio}
 user_level: {user_level}
 """
@@ -111,7 +113,7 @@ def _extract_content(response_data: dict[str, Any]) -> str:
     return content
 
 
-def analyze_term(term: str, user_bio: str = "", user_level: str = "") -> TermAnalysis:
+def analyze_term(term: str, user_bio: str = "", user_level: str = "", context_sentence: str = "") -> TermAnalysis:
     _load_local_env()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -121,6 +123,7 @@ def analyze_term(term: str, user_bio: str = "", user_level: str = "") -> TermAna
         term=term,
         user_bio=user_bio.strip() or "(empty)",
         user_level=user_level.strip() or "B1-B2",
+        context_sentence=context_sentence.strip() or "(not provided)",
     )
 
     request_payload = {
