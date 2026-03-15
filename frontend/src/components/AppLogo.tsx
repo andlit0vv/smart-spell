@@ -2,7 +2,7 @@ const LOGO_URL = "https://t.me/aivion_agency_bot";
 
 const AppLogo = () => {
   return (
-    <div className="fixed inset-x-0 top-4 z-[80] px-5">
+    <header className="px-5 pb-2 pt-4">
       <div className="mx-auto max-w-lg">
         <a
           href={LOGO_URL}
@@ -17,7 +17,7 @@ const AppLogo = () => {
           </span>
         </a>
       </div>
-    </div>
+    </header>
   );
 };
 

@@ -76,7 +76,7 @@ const Index = () => {
   };
 
   return (
-    <div className="app-gradient-bg min-h-screen bg-background pt-12 transition-colors duration-300">
+    <div className="app-gradient-bg min-h-app bg-background transition-colors duration-300">
       {showFirstLevelModal ? (
         <EnglishLevelModal onComplete={handleFirstLevelSelect} confirmLabel="Start" />
       ) : null}

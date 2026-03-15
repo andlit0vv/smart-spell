@@ -6,6 +6,7 @@
 
 @layer base {
   :root {
+    --app-height: 100dvh;
     --background: 210 60% 97%;
     --foreground: 220 24% 12%;
 
@@ -122,11 +123,37 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'DM Sans', sans-serif;
   }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 @layer utilities {
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .min-h-app {
+    min-height: var(--app-height);
+    min-height: 100dvh;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .bottom-nav {
+    transition: transform 0.2s ease;
+  }
+
+  body[data-keyboard-open="true"] .bottom-nav {
+    transform: translateY(120%);
   }
 
   .scrollbar-none {
