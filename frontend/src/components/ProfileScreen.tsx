@@ -117,16 +117,6 @@ const ProfileScreen = ({ theme, toggleTheme, englishLevel, onEditEnglishLevel }:
           </div>
         </div>
 
-        <div className="mt-5">
-          <label className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your name"
-            className="mt-1.5 w-full rounded-xl border border-border bg-muted/50 px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
 
         <div className="mt-5">
           <label className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">About Me</label>
