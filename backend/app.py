@@ -30,6 +30,111 @@ def _parse_bool(value: Any) -> bool:
     return False
 
 
+def _parse_topics(raw_topics: Any) -> list[str]:
+    if raw_topics is None:
+        return []
+
+    if isinstance(raw_topics, str):
+        candidates = [item.strip() for item in raw_topics.split(',')]
+    elif isinstance(raw_topics, list):
+        candidates = [str(item).strip() for item in raw_topics]
+    else:
+        raise ValueError('topics must be an array of strings or comma-separated string')
+
+    seen: set[str] = set()
+    topics: list[str] = []
+    for candidate in candidates:
+        if not candidate:
+            continue
+        lowered = candidate.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        topics.append(candidate)
+
+    return topics
+
+
+def _fetch_word_topics_map(user_id: int, words: list[str] | None = None) -> dict[str, list[str]]:
+    query = '''
+        SELECT dwt.normalized_word, t.name AS topic
+        FROM dictionary_word_topics dwt
+        JOIN topics t ON t.id = dwt.topic_id
+        WHERE dwt.user_id = %s
+    '''
+    params: list[Any] = [user_id]
+
+    if words:
+        normalized_words = [normalize_word(word) for word in words if word]
+        if normalized_words:
+            query += ' AND dwt.normalized_word = ANY(%s)'
+            params.append(normalized_words)
+
+    query += ' ORDER BY t.name ASC'
+
+    with get_db_cursor() as cursor:
+        cursor.execute(query, tuple(params))
+        topic_rows = cursor.fetchall()
+
+    topics_by_word: dict[str, list[str]] = {}
+    for row in topic_rows:
+        topics_by_word.setdefault(row['normalized_word'], []).append(row['topic'])
+
+    return topics_by_word
+
+
+def _replace_word_topics(user_id: int, word: str, topics: list[str]) -> list[str]:
+    normalized_word = normalize_word(word)
+
+    with get_db_cursor(commit=True) as cursor:
+        cursor.execute(
+            '''
+            DELETE FROM dictionary_word_topics
+            WHERE user_id = %s AND normalized_word = %s
+            ''',
+            (user_id, normalized_word),
+        )
+
+        if topics:
+            cursor.execute(
+                '''
+                INSERT INTO topics (user_id, name, normalized_name)
+                SELECT %s, topic_name, lower(topic_name)
+                FROM unnest(%s::text[]) AS topic_name
+                ON CONFLICT (user_id, normalized_name)
+                DO UPDATE SET
+                    name = EXCLUDED.name,
+                    updated_at = NOW()
+                ''',
+                (user_id, topics),
+            )
+
+            cursor.execute(
+                '''
+                INSERT INTO dictionary_word_topics (user_id, normalized_word, topic_id)
+                SELECT %s, %s, t.id
+                FROM topics t
+                WHERE t.user_id = %s AND t.normalized_name = ANY(%s::text[])
+                ON CONFLICT (user_id, normalized_word, topic_id) DO NOTHING
+                ''',
+                (user_id, normalized_word, user_id, [topic.lower() for topic in topics]),
+            )
+
+        cursor.execute(
+            '''
+            SELECT t.name AS topic
+            FROM dictionary_word_topics dwt
+            JOIN topics t ON t.id = dwt.topic_id
+            WHERE dwt.user_id = %s AND dwt.normalized_word = %s
+            ORDER BY t.name ASC
+            ''',
+            (user_id, normalized_word),
+        )
+        rows = cursor.fetchall()
+
+    return [row['topic'] for row in rows]
+
+
 def _parse_telegram_init_data(raw_init_data: str) -> dict[str, Any]:
     params = parse_qs(raw_init_data, keep_blank_values=True)
     user_payload = params.get('user', [''])[0]
@@ -234,24 +339,46 @@ def get_dictionary():
     except (RuntimeError, ValueError) as error:
         return _json_bad_request(error)
 
+    try:
+        topic_filters = _parse_topics(request.args.getlist('topic') or request.args.get('topic'))
+    except ValueError as error:
+        return _json_bad_request(error)
+
+    params: list[Any] = [user['id']]
+    query = '''
+        SELECT DISTINCT dw.word, dw.normalized_word, dw.definition, dw.relevance, dw.created_at
+        FROM dictionary_words dw
+    '''
+
+    if topic_filters:
+        query += '''
+            JOIN dictionary_word_topics dwt
+                ON dwt.user_id = dw.user_id AND dwt.normalized_word = dw.normalized_word
+            JOIN topics t
+                ON t.id = dwt.topic_id AND t.user_id = dw.user_id
+        '''
+
+    query += ' WHERE dw.user_id = %s'
+
+    if topic_filters:
+        query += ' AND t.normalized_name = ANY(%s::text[])'
+        params.append([topic.lower() for topic in topic_filters])
+
+    query += ' ORDER BY dw.created_at DESC'
+
     with get_db_cursor() as cursor:
-        cursor.execute(
-            '''
-            SELECT word, definition, relevance, created_at
-            FROM dictionary_words
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-            ''',
-            (user['id'],),
-        )
+        cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
+
+    topics_by_word = _fetch_word_topics_map(user['id'], [row['word'] for row in rows])
 
     words = [
         {
             'word': row['word'],
             'definition': row['definition'],
             'relevance': int(row['relevance'] or 0),
-            'domain': '',
+            'domain': '/'.join(topics_by_word.get(row['normalized_word'], [])),
+            'topics': topics_by_word.get(row['normalized_word'], []),
             'createdAt': row['created_at'].isoformat() if row['created_at'] else None,
         }
         for row in rows
@@ -274,6 +401,10 @@ def add_dictionary_word():
 
     relevance = data.get('relevance') if isinstance(data.get('relevance'), int) else 0
     relevance = max(0, min(relevance, 10))
+    try:
+        topics = _parse_topics(data.get('topics'))
+    except ValueError as error:
+        return _json_bad_request(error)
 
     with get_db_cursor(commit=True) as cursor:
         cursor.execute(
@@ -286,11 +417,13 @@ def add_dictionary_word():
                 definition = EXCLUDED.definition,
                 relevance = EXCLUDED.relevance,
                 updated_at = NOW()
-            RETURNING word, definition, relevance, created_at
+            RETURNING word, normalized_word, definition, relevance, created_at
             ''',
             (user['id'], word, normalize_word(word), definition, relevance),
         )
         saved = cursor.fetchone()
+
+    saved_topics = _replace_word_topics(user['id'], word, topics)
 
     return jsonify({
         'message': 'Word added',
@@ -298,7 +431,8 @@ def add_dictionary_word():
             'word': saved['word'],
             'definition': saved['definition'],
             'relevance': int(saved['relevance'] or 0),
-            'domain': '',
+            'domain': '/'.join(saved_topics),
+            'topics': saved_topics,
             'createdAt': saved['created_at'].isoformat() if saved['created_at'] else None,
         },
     })
@@ -330,6 +464,62 @@ def delete_dictionary_word():
     if not deleted:
         return jsonify({'error': 'Word not found'}), 404
     return jsonify({'message': 'Word deleted'})
+
+
+@app.patch('/api/dictionary/topics')
+def update_dictionary_word_topics():
+    data = request.get_json(silent=True) or {}
+    word = (data.get('word') or '').strip()
+    if not word:
+        return jsonify({'error': 'word is required'}), 400
+
+    try:
+        topics = _parse_topics(data.get('topics'))
+        user = resolve_current_user()
+    except (RuntimeError, ValueError) as error:
+        return _json_bad_request(error)
+
+    with get_db_cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT id
+            FROM dictionary_words
+            WHERE user_id = %s AND normalized_word = %s
+            ''',
+            (user['id'], normalize_word(word)),
+        )
+        existing = cursor.fetchone()
+
+    if not existing:
+        return jsonify({'error': 'Word not found'}), 404
+
+    saved_topics = _replace_word_topics(user['id'], word, topics)
+    return jsonify({'message': 'Topics updated', 'word': word, 'topics': saved_topics})
+
+
+@app.get('/api/topics')
+def get_topics():
+    try:
+        user = resolve_current_user()
+    except (RuntimeError, ValueError) as error:
+        return _json_bad_request(error)
+
+    with get_db_cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT t.name, COUNT(*)::int AS words_count
+            FROM topics t
+            LEFT JOIN dictionary_word_topics dwt
+                ON dwt.topic_id = t.id AND dwt.user_id = t.user_id
+            WHERE t.user_id = %s
+            GROUP BY t.id
+            ORDER BY t.name ASC
+            ''',
+            (user['id'],),
+        )
+        rows = cursor.fetchall()
+
+    return jsonify({'topics': [{'name': row['name'], 'wordsCount': row['words_count']} for row in rows]})
 
 
 @app.post('/api/test-user/starter-pack')
