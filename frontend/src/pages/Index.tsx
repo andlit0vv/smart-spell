@@ -11,6 +11,7 @@ import AppLogo from "@/components/AppLogo";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<TabId>("dictionary");
+  const [dictionaryResetSignal, setDictionaryResetSignal] = useState(0);
   const [showFirstLevelModal, setShowFirstLevelModal] = useState(false);
   const [showEditLevelModal, setShowEditLevelModal] = useState(false);
   const [englishLevel, setEnglishLevel] = useState("");
@@ -76,6 +77,14 @@ const Index = () => {
     setShowEditLevelModal(false);
   };
 
+
+  const handleTabChange = (tab: TabId) => {
+    if (tab === "dictionary" && activeTab === "dictionary") {
+      setDictionaryResetSignal((prev) => prev + 1);
+    }
+    setActiveTab(tab);
+  };
+
   return (
     <div className="app-gradient-bg min-h-app bg-background transition-colors duration-300">
       <AppLogo />
@@ -100,7 +109,7 @@ const Index = () => {
         <ReadScreen theme={theme} toggleTheme={toggleTheme} />
       </div>
       <div className={activeTab === "dictionary" ? "block" : "hidden"}>
-        <DictionaryScreen theme={theme} toggleTheme={toggleTheme} />
+        <DictionaryScreen theme={theme} toggleTheme={toggleTheme} resetSignal={dictionaryResetSignal} />
       </div>
       <div className={activeTab === "profile" ? "block" : "hidden"}>
         <ProfileScreen
@@ -110,7 +119,7 @@ const Index = () => {
           onEditEnglishLevel={() => setShowEditLevelModal(true)}
         />
       </div>
-      <BottomNav active={activeTab} onTabChange={setActiveTab} />
+      <BottomNav active={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 };

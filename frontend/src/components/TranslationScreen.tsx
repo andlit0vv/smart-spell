@@ -22,7 +22,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
   const [word, setWord] = useState("");
   const [result, setResult] = useState<WordResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
@@ -30,7 +29,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
     const inputWord = word.trim();
 
     setConnectionError(null);
-    setConnectionMessage(null);
     setIsSubmitting(true);
 
     try {
@@ -59,7 +57,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
         examples: Array.isArray(analysis.examples) ? analysis.examples : [],
         translationRu: typeof analysis.translationRu === "string" ? analysis.translationRu : "",
       });
-      setConnectionMessage("Analysis received from backend");
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : "Cannot connect to backend");
       setResult(null);
@@ -82,8 +79,7 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
 
     const saveWord = async () => {
       setConnectionError(null);
-      setConnectionMessage(null);
-
+  
       try {
         const response = await apiFetch("/api/dictionary", {
           method: "POST",
@@ -102,7 +98,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
           throw new Error(payload.error || "Failed to save word");
         }
 
-        setConnectionMessage("Word added to dictionary");
         notifyDictionaryUpdated();
       } catch (error) {
         setConnectionError(error instanceof Error ? error.message : "Cannot connect to backend");
@@ -142,9 +137,6 @@ const TranslationScreen = ({ theme, toggleTheme }: TranslationScreenProps) => {
         </motion.button>
       </div>
 
-      {connectionMessage ? (
-        <p className="mt-3 text-sm text-emerald-500">{connectionMessage}</p>
-      ) : null}
       {connectionError ? (
         <p className="mt-3 text-sm text-red-500">{connectionError}</p>
       ) : null}

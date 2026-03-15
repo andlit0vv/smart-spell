@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
+import { Slider } from "@/components/ui/slider";
 
 const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 
@@ -31,33 +31,26 @@ const parseInitialSelection = (initialLevel?: string): Level[] => {
 const EnglishLevelModal = ({
   onComplete,
   title = "Choose your English level",
-  description = "Pick one level or two neighboring levels.",
+  description = "Move the slider to your level. Optionally include the next level range.",
   confirmLabel = "Start",
   initialLevel,
 }: EnglishLevelModalProps) => {
-  const [selected, setSelected] = useState<Level[]>(() => parseInitialSelection(initialLevel));
+  const initialSelection = parseInitialSelection(initialLevel);
+  const [levelIndex, setLevelIndex] = useState(() => {
+    if (initialSelection.length === 0) return 2;
+    return LEVELS.indexOf(initialSelection[0]);
+  });
+  const [includeNext, setIncludeNext] = useState(() => initialSelection.length === 2);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
   const selectedRange = useMemo(() => {
-    if (selected.length === 0) return "";
-    if (selected.length === 1) return selected[0];
+    const current = LEVELS[levelIndex];
+    const hasNext = levelIndex < LEVELS.length - 1;
 
-    const ordered = [...selected].sort((a, b) => LEVELS.indexOf(a) - LEVELS.indexOf(b));
-    return `${ordered[0]}-${ordered[1]}`;
-  }, [selected]);
-
-  const toggleLevel = (level: Level) => {
-    setSelected((prev) => {
-      if (prev.includes(level)) {
-        return prev.filter((item) => item !== level);
-      }
-
-      if (prev.length === 0) return [level];
-      if (prev.length === 1) return isAdjacent(prev[0], level) ? [prev[0], level] : [level];
-      return [level];
-    });
-  };
+    if (!includeNext || !hasNext) return current;
+    return `${current}-${LEVELS[levelIndex + 1]}`;
+  }, [includeNext, levelIndex]);
 
   const handleContinue = async () => {
     if (!selectedRange || isSaving) return;
@@ -83,32 +76,51 @@ const EnglishLevelModal = ({
         <h2 className="text-center text-xl font-bold text-foreground">{title}</h2>
         <p className="mt-2 text-center text-sm text-muted-foreground">{description}</p>
 
-        <Carousel opts={{ align: "center" }} className="mt-5">
-          <CarouselContent>
-            {LEVELS.map((level) => {
-              const isActive = selected.includes(level);
-              return (
-                <CarouselItem key={level} className="basis-1/2 sm:basis-1/3">
-                  <button
-                    type="button"
-                    onClick={() => toggleLevel(level)}
-                    className={`h-24 w-full rounded-xl border text-lg font-bold transition-colors ${
-                      isActive
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "btn-secondary-glass border-border bg-muted/60 text-foreground"
-                    }`}
-                  >
-                    {level}
-                  </button>
-                </CarouselItem>
-              );
-            })}
-          </CarouselContent>
-        </Carousel>
+        <div className="mt-6 rounded-2xl border border-border/60 bg-background/60 px-4 py-5">
+          <div className="mb-3 flex items-center justify-between text-sm font-semibold text-foreground">
+            <span>{LEVELS[0]}</span>
+            <span>{LEVELS[LEVELS.length - 1]}</span>
+          </div>
+          <Slider
+            value={[levelIndex]}
+            min={0}
+            max={LEVELS.length - 1}
+            step={1}
+            onValueChange={([value]) => setLevelIndex(value)}
+            className="english-level-slider"
+            aria-label="English level"
+          />
 
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          {selectedRange ? `Selected: ${selectedRange}` : "Swipe cards and tap to select"}
-        </p>
+          <div className="mt-4 grid grid-cols-6 gap-2">
+            {LEVELS.map((level, index) => (
+              <button
+                key={level}
+                type="button"
+                onClick={() => setLevelIndex(index)}
+                className={`rounded-lg px-1 py-1.5 text-xs font-semibold transition-colors ${
+                  index === levelIndex
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted/70 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+
+          <label className="mt-4 flex items-center justify-between rounded-xl border border-border/50 bg-muted/40 px-3 py-2.5 text-sm">
+            <span className="text-foreground">Include next level</span>
+            <input
+              type="checkbox"
+              checked={includeNext}
+              disabled={levelIndex >= LEVELS.length - 1}
+              onChange={(event) => setIncludeNext(event.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
+          </label>
+        </div>
+
+        <p className="mt-4 text-center text-sm text-muted-foreground">Selected: {selectedRange}</p>
         {saveError ? <p className="mt-2 text-center text-sm text-red-500">{saveError}</p> : null}
 
         <button

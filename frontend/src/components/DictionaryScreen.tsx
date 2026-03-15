@@ -24,6 +24,7 @@ interface WordCategory {
 interface DictionaryScreenProps {
   theme: "light" | "dark";
   toggleTheme: () => void;
+  resetSignal?: number;
 }
 
 type LearningMode = null | "chooser" | "text" | "dialogue";
@@ -76,7 +77,7 @@ const hexToRgba = (hexColor: string, alpha: number) => {
 const resolveCategoryColor = (name: string, fallback?: string) =>
   PRESET_CATEGORY_COLORS[name.toLowerCase().trim()] ?? fallback ?? createRandomColor();
 
-const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
+const DictionaryScreen = ({ theme, toggleTheme, resetSignal = 0 }: DictionaryScreenProps) => {
   const [words, setWords] = useState<WordData[]>(initialWords);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [learningMode, setLearningMode] = useState<LearningMode>(null);
@@ -88,6 +89,13 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
   const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
   const [newCategoryName, setNewCategoryName] = useState("");
+
+  useEffect(() => {
+    setLearningMode(null);
+    setDialogueWords([]);
+    setSelected(new Set());
+    setActiveWord(null);
+  }, [resetSignal]);
 
   useEffect(() => {
     try {
@@ -414,7 +422,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">My Dictionary</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Mobile-first categories by topics.</p>
           </div>
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
         </div>

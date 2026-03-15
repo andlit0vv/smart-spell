@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, RotateCcw, Send, RefreshCw, GraduationCap, Pencil } from "lucide-react";
 import SelectionAnalysisCard, { type WordAnalysisCard } from "@/components/SelectionAnalysisCard";
@@ -42,6 +42,53 @@ const findSentenceContainingSelection = (text: string, selection: string) => {
   return text.slice(start, end).replace(/\s+/g, " ").trim();
 };
 
+
+const selectWordAtPoint = (x: number, y: number) => {
+  const documentWithCaretRange = document as Document & {
+    caretRangeFromPoint?: (pointX: number, pointY: number) => Range | null;
+    caretPositionFromPoint?: (pointX: number, pointY: number) => { offsetNode: Node; offset: number } | null;
+  };
+
+  let range: Range | null = null;
+
+  if (documentWithCaretRange.caretRangeFromPoint) {
+    range = documentWithCaretRange.caretRangeFromPoint(x, y);
+  } else if (documentWithCaretRange.caretPositionFromPoint) {
+    const position = documentWithCaretRange.caretPositionFromPoint(x, y);
+    if (position) {
+      range = document.createRange();
+      range.setStart(position.offsetNode, position.offset);
+      range.collapse(true);
+    }
+  }
+
+  if (!range) return "";
+
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+
+  const node = range.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE || !node.textContent) return "";
+
+  const text = node.textContent;
+  const isWordChar = (value: string) => /[\p{L}\p{N}'’-]/u.test(value);
+
+  let start = range.startOffset;
+  let end = range.startOffset;
+
+  while (start > 0 && isWordChar(text[start - 1])) start -= 1;
+  while (end < text.length && isWordChar(text[end])) end += 1;
+
+  if (start === end) return "";
+
+  const wordRange = document.createRange();
+  wordRange.setStart(node, start);
+  wordRange.setEnd(node, end);
+
+  selection?.addRange(wordRange);
+  return text.slice(start, end).trim();
+};
+
 const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: DialogueTrainingProps) => {
   const targetWords = useMemo(() => words.map((item) => item.word), [words]);
   const [practiceId, setPracticeId] = useState<string | null>(null);
@@ -73,6 +120,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const learnedWords = useMemo(
     () => Object.entries(state.word_status)
@@ -120,7 +168,6 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
       if (payload.practice_state) setState(payload.practice_state);
       setFeedback({ message: "", correction: "" });
       setAnswer("");
-      setHighlightedSelection("");
     } catch (error) {
       console.error("[Dialogue] Generate failed", error);
       setFeedback({ message: "Could not generate a situation. Please try again.", correction: "" });
@@ -162,7 +209,6 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
     setFeedback({ message: "", correction: "" });
     setAnswer("");
     setComplete(false);
-    setHighlightedSelection("");
   };
 
   const nextQuestion = async () => {
@@ -262,7 +308,33 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
 
     const contextSentence = findSentenceContainingSelection(sourceText, normalized);
     void requestWordAnalysis(normalized, contextSentence);
-    selection?.removeAllRanges();
+  };
+
+  const handleDoubleClickSelection = (sourceText: string, x: number, y: number) => {
+    const selectedWord = selectWordAtPoint(x, y);
+    if (!selectedWord) return;
+
+    const contextSentence = findSentenceContainingSelection(sourceText, selectedWord);
+    void requestWordAnalysis(selectedWord, contextSentence);
+  };
+
+  const handleTouchSelection = (sourceText: string, event: TouchEvent<HTMLElement>) => {
+    handleSelectionFromText(sourceText);
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const now = Date.now();
+    const previousTap = lastTapRef.current;
+    lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+
+    if (!previousTap) return;
+
+    const isQuickDoubleTap = now - previousTap.time < 350;
+    const isNearPreviousTap = Math.hypot(previousTap.x - touch.clientX, previousTap.y - touch.clientY) < 32;
+    if (!isQuickDoubleTap || !isNearPreviousTap) return;
+
+    handleDoubleClickSelection(sourceText, touch.clientX, touch.clientY);
   };
 
   const handleDictionaryAction = async () => {
@@ -286,7 +358,11 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
       if (!response.ok) throw new Error(payload.error || "Dictionary update failed");
 
       notifyDictionaryUpdated();
-      setAnalysisCard((prev) => (prev ? { ...prev, isInDictionary: !prev.isInDictionary } : prev));
+      if (!analysisCard.isInDictionary) {
+        setAnalysisCard(null);
+      } else {
+        setAnalysisCard((prev) => (prev ? { ...prev, isInDictionary: !prev.isInDictionary } : prev));
+      }
     } catch (dictionaryError) {
       setAnalysisError(dictionaryError instanceof Error ? dictionaryError.message : "Cannot update dictionary");
     } finally {
@@ -329,10 +405,11 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
           onChange={(e) => setSituation(e.target.value)}
           onBlur={() => void regenerateQuestion()}
           onMouseUp={() => handleSelectionFromText(situation)}
-          onTouchEnd={() => handleSelectionFromText(situation)}
+          onDoubleClick={(event) => handleDoubleClickSelection(situation, event.clientX, event.clientY)}
+          onTouchEnd={(event) => handleTouchSelection(situation, event)}
           readOnly={!isEditingSituation}
           rows={3}
-          className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 read-only:opacity-80"
+          className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground selection:bg-primary/35 selection:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 read-only:opacity-80"
         />
       </div>
 
@@ -343,7 +420,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
             <RefreshCw size={16} className={questionLoading ? "animate-spin" : ""} />
           </button>
         </div>
-        <p className="select-text text-sm text-foreground" onMouseUp={() => handleSelectionFromText(question)} onTouchEnd={() => handleSelectionFromText(question)}>
+        <p className="select-text text-sm text-foreground selection:bg-primary/35 selection:text-foreground" onMouseUp={() => handleSelectionFromText(question)} onDoubleClick={(event) => handleDoubleClickSelection(question, event.clientX, event.clientY)} onTouchEnd={(event) => handleTouchSelection(question, event)}>
           {questionLoading ? "Updating question..." : question}
         </p>
       </div>
@@ -376,11 +453,11 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
 
       <div className="mt-4 rounded-2xl glass-dialogue p-4">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">Feedback</p>
-        <p className="select-text text-sm text-foreground" onMouseUp={() => handleSelectionFromText(feedback.message)} onTouchEnd={() => handleSelectionFromText(feedback.message)}>
+        <p className="select-text text-sm text-foreground selection:bg-primary/35 selection:text-foreground" onMouseUp={() => handleSelectionFromText(feedback.message)} onDoubleClick={(event) => handleDoubleClickSelection(feedback.message, event.clientX, event.clientY)} onTouchEnd={(event) => handleTouchSelection(feedback.message, event)}>
           {feedback.message || "Submit your answer to get feedback."}
         </p>
         {feedback.correction && (
-          <p className="mt-2 select-text text-sm text-muted-foreground" onMouseUp={() => handleSelectionFromText(feedback.correction)} onTouchEnd={() => handleSelectionFromText(feedback.correction)}>
+          <p className="mt-2 select-text text-sm text-muted-foreground selection:bg-primary/35 selection:text-foreground" onMouseUp={() => handleSelectionFromText(feedback.correction)} onDoubleClick={(event) => handleDoubleClickSelection(feedback.correction, event.clientX, event.clientY)} onTouchEnd={(event) => handleTouchSelection(feedback.correction, event)}>
             Correction: {feedback.correction}
           </p>
         )}
