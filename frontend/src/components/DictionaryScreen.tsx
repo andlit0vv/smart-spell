@@ -5,7 +5,7 @@ import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
 import DialogueTraining from "./DialogueTraining";
 import ThemeToggle from "./ThemeToggle";
-import { apiFetch } from "@/lib/api";
+import { DICTIONARY_UPDATED_EVENT, apiFetch } from "@/lib/api";
 
 interface WordData {
   word: string;
@@ -110,7 +110,16 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
       }
     };
 
-    loadDictionary();
+    const handleDictionaryUpdated = () => {
+      void loadDictionary();
+    };
+
+    void loadDictionary();
+    window.addEventListener(DICTIONARY_UPDATED_EVENT, handleDictionaryUpdated);
+
+    return () => {
+      window.removeEventListener(DICTIONARY_UPDATED_EVENT, handleDictionaryUpdated);
+    };
   }, []);
 
   useEffect(() => {
@@ -173,7 +182,10 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const selectedWords = words.filter((w) => selected.has(w.word));
 
   useEffect(() => {
-    if (categoryFilters.size === 0) return;
+    if (categoryFilters.size === 0) {
+      setSelected((prev) => (prev.size === 0 ? prev : new Set()));
+      return;
+    }
 
     setSelected((prev) => {
       const next = new Set(filteredWords.map((item) => item.word));

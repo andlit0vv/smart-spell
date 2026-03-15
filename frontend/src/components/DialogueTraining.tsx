@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, RotateCcw, Send, RefreshCw, GraduationCap, Pencil } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import SelectionAnalysisCard, { type WordAnalysisCard } from "@/components/SelectionAnalysisCard";
+import { apiFetch, notifyDictionaryUpdated } from "@/lib/api";
 
 interface WordInfo {
   word: string;
@@ -21,6 +22,25 @@ interface PracticeState {
   correct_count: number;
   total_words: number;
 }
+
+const findSentenceContainingSelection = (text: string, selection: string) => {
+  const normalizedSelection = selection.trim();
+  if (!normalizedSelection) return "";
+
+  const searchIndex = text.toLowerCase().indexOf(normalizedSelection.toLowerCase());
+  if (searchIndex === -1) return text.trim();
+
+  const before = text.slice(0, searchIndex);
+  const after = text.slice(searchIndex + normalizedSelection.length);
+
+  const leftBoundary = Math.max(before.lastIndexOf("."), before.lastIndexOf("!"), before.lastIndexOf("?"));
+  const rightCandidates = [after.indexOf("."), after.indexOf("!"), after.indexOf("?")].filter((i) => i >= 0);
+  const rightBoundary = rightCandidates.length ? Math.min(...rightCandidates) : -1;
+
+  const start = leftBoundary >= 0 ? leftBoundary + 1 : 0;
+  const end = rightBoundary >= 0 ? searchIndex + normalizedSelection.length + rightBoundary + 1 : text.length;
+  return text.slice(start, end).replace(/\s+/g, " ").trim();
+};
 
 const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: DialogueTrainingProps) => {
   const targetWords = useMemo(() => words.map((item) => item.word), [words]);
@@ -48,6 +68,11 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
   });
   const [complete, setComplete] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
+
+  const [analysisCard, setAnalysisCard] = useState<WordAnalysisCard | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
+  const [dictionaryLoading, setDictionaryLoading] = useState(false);
 
   const learnedWords = useMemo(
     () => Object.entries(state.word_status)
@@ -175,6 +200,98 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
     }
   };
 
+  const checkWordInDictionary = async (word: string) => {
+    const response = await apiFetch("/api/dictionary");
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Failed to load dictionary");
+    const existingWords = Array.isArray(payload.words) ? payload.words : [];
+    return existingWords.some((item: { word?: string }) => item.word?.toLowerCase() === word.toLowerCase());
+  };
+
+  const requestWordAnalysis = async (selectedText: string, contextSentence: string) => {
+    const normalizedSelection = selectedText.replace(/\s+/g, " ").trim();
+    if (!normalizedSelection) return;
+
+    setAnalysisLoading(true);
+    setAnalysisError("");
+
+    try {
+      const response = await apiFetch("/api/translation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          word: normalizedSelection,
+          context_sentence: contextSentence,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Backend request failed");
+      const analysis = payload.analysis;
+      if (!analysis) throw new Error("Backend returned no analysis");
+
+      const resolvedWord = analysis.term || normalizedSelection;
+      const isInDictionary = await checkWordInDictionary(resolvedWord);
+
+      setAnalysisCard({
+        word: resolvedWord,
+        definition: analysis.definition,
+        relevance: typeof analysis.relevance === "number" ? analysis.relevance : 0,
+        examples: Array.isArray(analysis.examples) ? analysis.examples : [],
+        translationRu: typeof analysis.translationRu === "string" ? analysis.translationRu : "",
+        isInDictionary,
+        contextSentence,
+      });
+    } catch (requestError) {
+      setAnalysisError(requestError instanceof Error ? requestError.message : "Cannot analyze selected text");
+      setAnalysisCard(null);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const handleSelectionFromText = (sourceText: string) => {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString() || "";
+    const normalized = selectedText.replace(/\s+/g, " ").trim();
+    if (!normalized) return;
+
+    const contextSentence = findSentenceContainingSelection(sourceText, normalized);
+    void requestWordAnalysis(normalized, contextSentence);
+    selection?.removeAllRanges();
+  };
+
+  const handleDictionaryAction = async () => {
+    if (!analysisCard) return;
+
+    setDictionaryLoading(true);
+    setAnalysisError("");
+
+    try {
+      const response = await apiFetch("/api/dictionary", {
+        method: analysisCard.isInDictionary ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          word: analysisCard.word,
+          definition: analysisCard.definition,
+          relevance: analysisCard.relevance,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Dictionary update failed");
+
+      notifyDictionaryUpdated();
+      setAnalysisCard((prev) => (prev ? { ...prev, isInDictionary: !prev.isInDictionary } : prev));
+    } catch (dictionaryError) {
+      setAnalysisError(dictionaryError instanceof Error ? dictionaryError.message : "Cannot update dictionary");
+    } finally {
+      setDictionaryLoading(false);
+    }
+  };
+
   useEffect(() => {
     const run = async () => {
       await loadProfile();
@@ -185,7 +302,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
   }, []);
 
   return (
-    <div className="mx-auto max-w-lg px-5 pb-36 pt-6">
+    <div className="relative mx-auto max-w-lg px-5 pb-36 pt-6">
       <div className="mb-6 flex items-center gap-3">
         <motion.button whileTap={{ scale: 0.9 }} onClick={onExit} className="flex h-10 w-10 items-center justify-center rounded-xl glass">
           <ArrowLeft size={18} className="text-foreground" />
@@ -194,33 +311,23 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
       </div>
 
       <div className="mb-4 text-sm text-muted-foreground">
-        {targetCategory ? (
-          <span><strong>Target category:</strong> {targetCategory}</span>
-        ) : (
-          <span><strong>Target words:</strong> {targetWords.join(", ")}</span>
-        )}
+        {targetCategory ? <span><strong>Target category:</strong> {targetCategory}</span> : <span><strong>Target words:</strong> {targetWords.join(", ")}</span>}
       </div>
 
       <div className="mb-3 rounded-2xl glass-dialogue p-5">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Situation</p>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsEditingSituation((prev) => !prev)}
-              className="text-primary"
-              aria-label="Edit situation"
-            >
-              <Pencil size={16} />
-            </button>
-            <button onClick={generateScenario} className="text-primary" aria-label="Refresh situation">
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            </button>
+            <button onClick={() => setIsEditingSituation((prev) => !prev)} className="text-primary" aria-label="Edit situation"><Pencil size={16} /></button>
+            <button onClick={generateScenario} className="text-primary" aria-label="Refresh situation"><RefreshCw size={16} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
         <textarea
           value={situation}
           onChange={(e) => setSituation(e.target.value)}
           onBlur={() => void regenerateQuestion()}
+          onMouseUp={() => handleSelectionFromText(situation)}
+          onTouchEnd={() => handleSelectionFromText(situation)}
           readOnly={!isEditingSituation}
           rows={3}
           className="w-full resize-none rounded-xl bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 read-only:opacity-80"
@@ -230,16 +337,13 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
       <div className="mb-4 rounded-2xl glass-dialogue p-5">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Question</p>
-          <button
-            onClick={nextQuestion}
-            disabled={questionLoading || loading}
-            className="text-primary disabled:opacity-60"
-            aria-label="Generate another question"
-          >
+          <button onClick={nextQuestion} disabled={questionLoading || loading} className="text-primary disabled:opacity-60" aria-label="Generate another question">
             <RefreshCw size={16} className={questionLoading ? "animate-spin" : ""} />
           </button>
         </div>
-        <p className="text-sm text-foreground">{questionLoading ? "Updating question..." : question}</p>
+        <p className="select-text text-sm text-foreground" onMouseUp={() => handleSelectionFromText(question)} onTouchEnd={() => handleSelectionFromText(question)}>
+          {questionLoading ? "Updating question..." : question}
+        </p>
       </div>
 
       <div className="space-y-3">
@@ -252,11 +356,7 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
             rows={4}
             className="w-full resize-none rounded-2xl glass-dialogue px-4 py-3 pr-12 text-[14px] text-foreground"
           />
-          <button
-            onClick={checkAnswer}
-            disabled={answerLoading || !answer.trim()}
-            className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
-          >
+          <button onClick={checkAnswer} disabled={answerLoading || !answer.trim()} className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40">
             <Send size={14} />
           </button>
         </div>
@@ -274,30 +374,24 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
 
       <div className="mt-4 rounded-2xl glass-dialogue p-4">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">Feedback</p>
-        <p className="text-sm text-foreground">{feedback.message || "Submit your answer to get feedback."}</p>
-        {feedback.correction && <p className="mt-2 text-sm text-muted-foreground">Correction: {feedback.correction}</p>}
+        <p className="select-text text-sm text-foreground" onMouseUp={() => handleSelectionFromText(feedback.message)} onTouchEnd={() => handleSelectionFromText(feedback.message)}>
+          {feedback.message || "Submit your answer to get feedback."}
+        </p>
+        {feedback.correction && (
+          <p className="mt-2 select-text text-sm text-muted-foreground" onMouseUp={() => handleSelectionFromText(feedback.correction)} onTouchEnd={() => handleSelectionFromText(feedback.correction)}>
+            Correction: {feedback.correction}
+          </p>
+        )}
       </div>
 
       {complete && (
-        <div className="mt-4 rounded-2xl bg-green-500/10 p-4 text-sm text-green-700 dark:text-green-400">
-          Practice complete. You used all selected words correctly.
-        </div>
+        <div className="mt-4 rounded-2xl bg-green-500/10 p-4 text-sm text-green-700 dark:text-green-400">Practice complete. You used all selected words correctly.</div>
       )}
 
       <div className="mt-5 space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={restartPractice}
-            className="flex items-center justify-center gap-2 rounded-xl glass-dialogue px-4 py-3 text-sm font-semibold"
-          >
-            <RotateCcw size={15} /> Start Over
-          </button>
-          <button
-            onClick={() => setShowFinishModal(true)}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-          >
-            <GraduationCap size={15} /> Finish Practice
-          </button>
+          <button onClick={restartPractice} className="flex items-center justify-center gap-2 rounded-xl glass-dialogue px-4 py-3 text-sm font-semibold"><RotateCcw size={15} /> Start Over</button>
+          <button onClick={() => setShowFinishModal(true)} className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"><GraduationCap size={15} /> Finish Practice</button>
         </div>
       </div>
 
@@ -330,6 +424,18 @@ const DialogueTraining = ({ words, onExit, onFinishPractice, targetCategory }: D
           </div>
         </div>
       )}
+
+      <SelectionAnalysisCard
+        analysisCard={analysisCard}
+        analysisLoading={analysisLoading}
+        analysisError={analysisError}
+        dictionaryLoading={dictionaryLoading}
+        onClose={() => {
+          setAnalysisCard(null);
+          setAnalysisError("");
+        }}
+        onDictionaryAction={() => void handleDictionaryAction()}
+      />
     </div>
   );
 };
