@@ -6,7 +6,6 @@ from urllib import error, request
 
 from llm_validation import LLMValidationError, TermAnalysis, validate_analysis_response
 
-import httpx
 
 OPENAI_API_URL = "https://api.openai.com/v1/responses"
 DEFAULT_MODEL = "gpt-5-nano"
