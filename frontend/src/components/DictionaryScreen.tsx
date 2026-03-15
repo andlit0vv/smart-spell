@@ -5,7 +5,7 @@ import VocabCard from "./VocabCard";
 import LearningTextModal from "./LearningTextModal";
 import DialogueTraining from "./DialogueTraining";
 import ThemeToggle from "./ThemeToggle";
-import { apiFetch } from "@/lib/api";
+import { DICTIONARY_UPDATED_EVENT, apiFetch, notifyDictionaryUpdated } from "@/lib/api";
 
 interface WordData {
   word: string;
@@ -30,8 +30,19 @@ type LearningMode = null | "chooser" | "text" | "dialogue";
 
 const initialWords: WordData[] = [];
 
-const createCategoryId = (name: string, group: WordCategory["group"]) =>
-  `${group}:${name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
+const createCategoryId = (name: string, group: WordCategory["group"]) => {
+  const normalized = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/(^-|-$)/g, "");
+
+  if (normalized) return `${group}:${normalized}`;
+
+  let hash = 0;
+  for (const char of name) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+  return `${group}:id-${Math.abs(hash)}`;
+};
 
 const groupFromDomain = (_domain: string): WordCategory["group"] => "topic";
 
@@ -75,7 +86,6 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   const [wordCategoryIds, setWordCategoryIds] = useState<Record<string, string[]>>({});
   const [activeWord, setActiveWord] = useState<string | null>(null);
 
-  const [filterGroup, setFilterGroup] = useState<"all" | "topic">("all");
   const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -110,7 +120,16 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
       }
     };
 
-    loadDictionary();
+    const handleDictionaryUpdated = () => {
+      void loadDictionary();
+    };
+
+    void loadDictionary();
+    window.addEventListener(DICTIONARY_UPDATED_EVENT, handleDictionaryUpdated);
+
+    return () => {
+      window.removeEventListener(DICTIONARY_UPDATED_EVENT, handleDictionaryUpdated);
+    };
   }, []);
 
   useEffect(() => {
@@ -151,6 +170,37 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
   }, [words]);
 
   useEffect(() => {
+    const loadTopics = async () => {
+      try {
+        const response = await apiFetch("/api/topics");
+        const payload = await response.json();
+        if (!response.ok || !Array.isArray(payload.topics)) return;
+
+        setCategoriesById((prev) => {
+          const next = { ...prev };
+          payload.topics.forEach((topic: { name?: string }) => {
+            const name = String(topic.name || "").trim();
+            if (!name) return;
+            const id = createCategoryId(name, "topic");
+            const previous = prev[id];
+            next[id] = {
+              id,
+              name,
+              group: "topic",
+              color: resolveCategoryColor(name, previous?.color),
+            };
+          });
+          return next;
+        });
+      } catch (error) {
+        console.error("[Dictionary] Failed to load topics", error);
+      }
+    };
+
+    void loadTopics();
+  }, []);
+
+  useEffect(() => {
     sessionStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(categoriesById));
   }, [categoriesById]);
 
@@ -160,15 +210,13 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
 
   const allCategories = useMemo(() => Object.values(categoriesById), [categoriesById]);
 
-  const visibleCategories = allCategories
-    .filter((item) => (filterGroup === "all" ? true : item.group === filterGroup))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const visibleCategories = useMemo(() => allCategories.slice().sort((a, b) => a.name.localeCompare(b.name)), [allCategories]);
 
-  const filteredWords = words.filter((word) => {
+  const filteredWords = useMemo(() => words.filter((word) => {
     if (categoryFilters.size === 0) return true;
     const ids = wordCategoryIds[word.word] ?? [];
     return ids.some((id) => categoryFilters.has(id));
-  });
+  }), [words, categoryFilters, wordCategoryIds]);
 
   const selectedWords = words.filter((w) => selected.has(w.word));
 
@@ -176,9 +224,9 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     if (categoryFilters.size === 0) return;
 
     setSelected((prev) => {
-      const next = new Set(filteredWords.map((item) => item.word));
-      const unchanged = prev.size === next.size && Array.from(next).every((word) => prev.has(word));
-      return unchanged ? prev : next;
+      const next = new Set(prev);
+      filteredWords.forEach((item) => next.add(item.word));
+      return next;
     });
   }, [categoryFilters, filteredWords]);
 
@@ -200,43 +248,165 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
     });
   };
 
-  const handleMarkLearned = () => {
-    setWords((prev) => prev.filter((w) => !selected.has(w.word)));
-    setSelected(new Set());
+  const handleDeleteSelectedCategories = async () => {
+    const selectedCategoryIds = Array.from(categoryFilters);
+    if (selectedCategoryIds.length === 0) return;
+
+    const selectedCategoryNames = selectedCategoryIds
+      .map((id) => categoriesById[id]?.name)
+      .filter(Boolean) as string[];
+
+    if (selectedCategoryNames.length === 0) return;
+
+    try {
+      const response = await apiFetch("/api/topics", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topics: selectedCategoryNames }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to delete categories");
+
+      setCategoriesById((prev) => {
+        const next = { ...prev };
+        selectedCategoryIds.forEach((id) => {
+          delete next[id];
+        });
+        return next;
+      });
+
+      setWordCategoryIds((prev) => {
+        const next: Record<string, string[]> = {};
+        Object.entries(prev).forEach(([word, ids]) => {
+          next[word] = ids.filter((id) => !categoryFilters.has(id));
+        });
+        return next;
+      });
+
+      setCategoryFilters(new Set());
+      notifyDictionaryUpdated();
+    } catch (error) {
+      console.error("[Dictionary] Failed to delete categories", error);
+    }
   };
 
-  const handleDialogueFinish = (markAsLearned: boolean, learnedWords: string[]) => {
-    if (markAsLearned) {
-      const learnedSet = new Set(learnedWords);
-      setWords((prev) => prev.filter((w) => !learnedSet.has(w.word)));
+  const handleMarkLearned = async () => {
+    const wordsToMark = Array.from(selected);
+    if (wordsToMark.length === 0) return;
+
+    try {
+      const response = await apiFetch("/api/dictionary/learned", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ words: wordsToMark }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to mark words as learned");
+
+      const deletedWords = Array.isArray(payload.deletedWords) ? payload.deletedWords : wordsToMark;
+      const deletedSet = new Set(deletedWords.map((word: string) => word.toLowerCase()));
+      setWords((prev) => prev.filter((w) => !deletedSet.has(w.word.toLowerCase())));
+      setSelected(new Set());
+      notifyDictionaryUpdated();
+    } catch (error) {
+      console.error("[Dictionary] Failed to mark words as learned", error);
     }
+  };
+
+  const handleDialogueFinish = async (markAsLearned: boolean, learnedWords: string[]) => {
+    if (markAsLearned && learnedWords.length > 0) {
+      try {
+        const response = await apiFetch("/api/dictionary/learned", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ words: learnedWords }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Failed to mark words as learned");
+
+        const deletedWords = Array.isArray(payload.deletedWords) ? payload.deletedWords : learnedWords;
+        const learnedSet = new Set(deletedWords.map((word: string) => word.toLowerCase()));
+        setWords((prev) => prev.filter((w) => !learnedSet.has(w.word.toLowerCase())));
+        notifyDictionaryUpdated();
+      } catch (error) {
+        console.error("[Dictionary] Failed to persist learned words", error);
+      }
+    }
+
     setLearningMode(null);
     setDialogueWords([]);
     setSelected(new Set());
   };
 
-  const toggleWordCategory = (word: string, categoryId: string) => {
-    setWordCategoryIds((prev) => {
-      const current = prev[word] ?? [];
-      return {
+  const toggleWordCategory = async (word: string, categoryId: string) => {
+    const previousTopics = wordCategoryIds[word] ?? [];
+    const nextTopics = previousTopics.includes(categoryId)
+      ? previousTopics.filter((id) => id !== categoryId)
+      : [...previousTopics, categoryId];
+
+    setWordCategoryIds((prev) => ({
+      ...prev,
+      [word]: nextTopics,
+    }));
+
+    const topicNames = nextTopics.map((id) => categoriesById[id]?.name).filter(Boolean);
+
+    try {
+      const response = await apiFetch("/api/dictionary/topics", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          word,
+          topics: topicNames,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to update word topics");
+
+      const savedTopicNames: string[] = Array.isArray(payload.topics) ? payload.topics : topicNames;
+      const savedIds = savedTopicNames
+        .map((name) => allCategories.find((category) => category.name.toLowerCase() === String(name).toLowerCase())?.id)
+        .filter(Boolean) as string[];
+
+      setWordCategoryIds((prev) => ({
         ...prev,
-        [word]: current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
-      };
-    });
+        [word]: savedIds.length > 0 ? savedIds : nextTopics,
+      }));
+      notifyDictionaryUpdated();
+    } catch (error) {
+      setWordCategoryIds((prev) => ({
+        ...prev,
+        [word]: previousTopics,
+      }));
+      console.error("[Dictionary] Failed to toggle word category", error);
+    }
   };
 
-  const createCategory = () => {
+  const createCategory = async () => {
     const trimmed = newCategoryName.trim();
     if (!trimmed) return;
     const id = createCategoryId(trimmed, "topic");
-    setCategoriesById((prev) => {
-      if (prev[id]) return prev;
-      return {
-        ...prev,
-        [id]: { id, name: trimmed, group: "topic", color: resolveCategoryColor(trimmed) },
-      };
-    });
-    setNewCategoryName("");
+
+    try {
+      const response = await apiFetch("/api/topics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to create topic");
+
+      setCategoriesById((prev) => {
+        if (prev[id]) return prev;
+        return {
+          ...prev,
+          [id]: { id, name: trimmed, group: "topic", color: resolveCategoryColor(trimmed) },
+        };
+      });
+      setNewCategoryName("");
+    } catch (error) {
+      console.error("[Dictionary] Failed to create category", error);
+    }
   };
 
   if (learningMode === "dialogue" && dialogueWords.length > 0) {
@@ -268,28 +438,15 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category filters</p>
             {categoryFilters.size > 0 && (
-              <button type="button" onClick={() => setCategoryFilters(new Set())} className="text-xs font-semibold text-primary">
-                Clear
-              </button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleDeleteSelectedCategories} className="text-xs font-semibold text-destructive">
+                  Delete
+                </button>
+                <button type="button" onClick={() => setCategoryFilters(new Set())} className="text-xs font-semibold text-primary">
+                  Clear
+                </button>
+              </div>
             )}
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-1.5 rounded-xl bg-background/40 p-1">
-            {(["all", "topic"] as const).map((group) => (
-              <button
-                key={group}
-                type="button"
-                onClick={() => {
-                  setFilterGroup(group);
-                  if (group === "all") {
-                    setCategoryFilters(new Set(allCategories.map((category) => category.id)));
-                  }
-                }}
-                className={`rounded-lg px-2 py-1.5 text-[11px] font-semibold capitalize ${filterGroup === group ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-              >
-                {group === "topic" ? "topics" : group}
-              </button>
-            ))}
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -330,7 +487,7 @@ const DictionaryScreen = ({ theme, toggleTheme }: DictionaryScreenProps) => {
             </button>
           </div>
 
-          <p className="mt-2 text-xs text-muted-foreground">Showing {filteredWords.length} of {words.length} words</p>
+          <p className="mt-2 text-xs text-muted-foreground">Showing {filteredWords.length} words</p>
         </div>
 
         <div className="mt-4 flex flex-col gap-2.5">
