@@ -56,7 +56,7 @@ INSTRUCTIONS:
 8. Do NOT include target words inside the question.
 9. The question must logically follow the situation.
 10. The question must encourage explanation, description, or justification.
-11. Language must match user's English level - {user_level}.
+11. Language must match user's English level - {english_level}.
 12. The situation should be 1–2 sentences.
 13. The question should be 1 sentence.
 14. The situation must be no longer than 120 characters (including spaces and punctuation).
@@ -86,7 +86,7 @@ TASK
 Generate one question (1 sentence) that logically follows the situation and encourages explanation.
 The learner should be able to naturally use one or more target words in the answer.
 Do not include any target word directly inside the question.
-Use language suitable for user's English level - {user_level}.
+Use language suitable for user's English level - {english_level}.
 If PREVIOUS_QUESTION is provided, create a new question with a different angle and wording while staying in the same situation.
 The question must be no longer than 100 characters (including spaces and punctuation).
 
@@ -251,7 +251,7 @@ def _load_local_env() -> None:
             os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-def _call_llm(prompt: str, *, temperature: float = 0.2) -> dict[str, Any]:
+def _call_llm(prompt: str) -> dict[str, Any]:
     _load_local_env()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -267,7 +267,6 @@ def _call_llm(prompt: str, *, temperature: float = 0.2) -> dict[str, Any]:
         data=json.dumps(
             {
                 "model": os.getenv("OPENAI_MODEL", DEFAULT_MODEL),
-                "temperature": temperature,
                 "messages": [{"role": "user", "content": prompt}],
                 "response_format": {"type": "json_object"},
             }
