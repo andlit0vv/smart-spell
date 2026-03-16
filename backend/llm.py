@@ -1,0 +1,238 @@
+import json
+import os
+from pathlib import Path
+from typing import Any
+from urllib import error, request
+
+from llm_validation import LLMValidationError, TermAnalysis, validate_analysis_response
+
+
+OPENAI_API_URL = "https://api.openai.com/v1/responses"
+DEFAULT_MODEL = "gpt-5-nano"
+
+
+PROMPT_TEMPLATE = """
+You analyze vocabulary for an English learner.
+
+Return JSON only:
+
+
+ "term": "",
+ "relevance": 0-10,
+ "definition": "",
+ "translationRu": "",
+ "examples": ["",""]
+
+
+Output rules:
+- JSON only
+- definition ≤10 words
+- translation shorter than definition
+- exactly 2 natural examples
+
+RELEVANCE PRIORITY:
+
+1) Base vocabulary for learner level (MOST IMPORTANT)
+2) Domain relevance to user_bio
+3) General frequency
+4) Unrelated technical terms → low relevance
+
+Base rule:
+
+If a word should normally be known by level {user_level}
+or below → relevance MUST be 10.
+
+{examples}
+
+--------------------------------
+Do not think step-by-step.
+Do not explain reasoning.
+Return JSON immediately.
+--------------------------------
+INPUT
+
+term: {term}
+user_bio: {user_bio}
+level: {user_level}
+"""
+
+EXAMPLES_BLOCK = """
+RELEVANCE EXAMPLES
+
+Base vocabulary (must be relevance 10 regardless of profession):
+
+dog → 10
+approach → 10
+system → 10
+change → 10
+important → 10
+people → 10
+result → 10
+process → 10
+
+--------------------------------
+
+User: data analyst
+
+dataset → 10
+pipeline → 9
+aggregation → 9
+regression → 8
+dashboard → 8
+kpi → 8
+
+--------------------------------
+
+User: software developer
+
+algorithm → 10
+database → 9
+repository → 8
+deployment → 8
+compiler → 8
+
+--------------------------------
+
+User: marketer
+
+conversion → 10
+campaign → 9
+brand → 9
+audience → 8
+engagement → 8
+
+--------------------------------
+
+User: medical doctor
+
+diagnosis → 10
+infection → 9
+treatment → 9
+symptom → 9
+cardiology → 8
+
+--------------------------------
+
+Unrelated domain examples:
+
+User: designer
+
+cardiology → 2
+neurosurgery → 2
+anesthesia → 2
+
+User: doctor
+
+javascript → 3
+docker → 3
+kubernetes → 3
+"""
+
+class LLMError(Exception):
+    pass
+
+
+def _load_local_env() -> None:
+    backend_dir = Path(__file__).resolve().parent
+    for candidate in (backend_dir / ".env", backend_dir.parent / ".env"):
+        if not candidate.exists():
+            continue
+
+        for line in candidate.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+
+            key, value = stripped.split("=", 1)
+            env_key = key.strip()
+            env_value = value.strip().strip('"').strip("'")
+            os.environ.setdefault(env_key, env_value)
+_load_local_env()
+
+
+
+def _extract_content(response_data):
+    try:
+        # Самый быстрый путь (новый Responses API)
+        if "output_text" in response_data:
+            text = response_data["output_text"]
+
+            if isinstance(text, list):
+                return "".join(text)
+
+            if isinstance(text, str):
+                return text
+
+        # fallback
+        for item in response_data.get("output", []):
+            if item.get("type") == "message":
+                for part in item.get("content", []):
+                    if "text" in part:
+                        return part["text"]
+
+        raise LLMError("No text content in OpenAI response")
+
+    except Exception:
+        raise LLMError(f"Invalid OpenAI response format: {response_data}")
+
+
+
+def analyze_term(term: str, user_bio: str = "", user_level: str = "", context_sentence: str = "") -> TermAnalysis:
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise LLMError("OPENAI_API_KEY is not set")
+
+    prompt = PROMPT_TEMPLATE.format(
+        term=term,
+        user_bio=user_bio.strip() or "(empty)",
+        user_level=user_level.strip() or "B1-B2",
+        examples=EXAMPLES_BLOCK
+    )
+
+    request_payload = {
+        "model": "gpt-5-nano",
+        "input": prompt,
+        "max_output_tokens": 400,
+        "reasoning": {
+            "effort": "minimal"
+        },
+        "prompt_cache_key": "term-analysis-v3",
+        "text": {
+            "format": {"type": "json_object"}
+        }
+    }
+
+    req = request.Request(
+        OPENAI_API_URL,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        data=json.dumps(request_payload).encode("utf-8"),
+    )
+
+    try:
+        with request.urlopen(req, timeout=40) as response:
+            response_data = json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore")
+        raise LLMError(f"OpenAI HTTP error {exc.code}: {details}") from exc
+    except error.URLError as exc:
+        raise LLMError(f"OpenAI connection error: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise LLMError("OpenAI request timed out") from exc
+
+    content = _extract_content(response_data)
+    if not content:
+        raise LLMError(f"LLM returned empty response: {response_data}")
+    try:
+        analysis_payload = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise LLMError("LLM did not return valid JSON") from exc
+
+    try:
+        return validate_analysis_response(term, analysis_payload)
+    except LLMValidationError as exc:
+        raise LLMError(str(exc)) from exc
