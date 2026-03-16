@@ -1,3 +1,4 @@
+#10:13
 import json
 import os
 from pathlib import Path
@@ -36,9 +37,20 @@ Rules:
 - at least 2 natural examples
 - relevance based on:
   1) frequency in modern English
-  2) usefulness for B1-B2 communication
+  2) usefulness for {user_level} communication
   3) match with user_bio domain
 - avoid overrating rare/advanced words
+
+How to calculate relevance (0-10):
+Use a balanced score based on all 3 factors below:
+1) General everyday frequency in modern English.
+2) Practical usefulness for {user_level}-level communication.
+3) Personal relevance to user_profile_bio (profession/interests/goals).
+
+Level priority rule:
+If the term CEFR level is lower than or equal to the user's level,
+assign very high relevance (9–10), unless the word is extremely rare.
+Example: for a B2 learner, common B1 words like "achieve" → relevance 10.
 """
 
 
@@ -107,7 +119,7 @@ def analyze_term(term: str, user_bio: str = "", user_level: str = "", context_se
     request_payload = {
         "model": "gpt-5-nano",
         "input": prompt,
-        "max_output_tokens": 380,
+        "max_output_tokens": 400,
         "reasoning": {"effort": "minimal"},
         "prompt_cache_key": "term-analysis-v1",
         "text": {
