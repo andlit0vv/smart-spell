@@ -31,9 +31,9 @@ def _build_connection_config() -> dict[str, str]:
 
     # значения из env или fallback на pooler Supabase
     config = {
-        "user": os.getenv("user", "postgres.tizootfbwyohpjhkhpdw").strip(),
+        "user": os.getenv("user", "postgres.ibjgtvoipbvthntzvrpf").strip(),
         "password": os.getenv("password", "DwNT/byqyH?#.4a").strip(),
-        "host": os.getenv("host", "aws-1-eu-west-1.pooler.supabase.com").strip(),
+        "host": os.getenv("host", "aws-1-eu-west-2.pooler.supabase.com").strip(),
         "port": os.getenv("port", "5432").strip(),
         "dbname": os.getenv("dbname", "postgres").strip(),
     }

@@ -1,7 +1,6 @@
 
 import logging
 import os
-import re
 from typing import Any
 
 from flask import Flask, jsonify, request
@@ -19,10 +18,6 @@ app = Flask(__name__)
 logger = logging.getLogger(__name__)
 register_dialog_endpoints(app)
 register_reading_endpoints(app)
-
-
-def normalize_word(value: str) -> str:
-    return re.sub(r'\s+', ' ', (value or '').strip().lower())
 
 
 def _parse_bool(value: Any) -> bool:
@@ -58,20 +53,20 @@ def _parse_topics(raw_topics: Any) -> list[str]:
     return topics
 
 
-def _fetch_word_topics_map(user_id: int, words: list[str] | None = None) -> dict[str, list[str]]:
+
+def _fetch_word_topics_map(user_id: int, word_ids: list[int] | None = None) -> dict[int, list[str]]:
     query = '''
-        SELECT dwt.normalized_word, t.name AS topic
+        SELECT dwt.word_id, t.name AS topic
         FROM dictionary_word_topics dwt
-        JOIN topics t ON t.id = dwt.topic_id
-        WHERE dwt.user_id = %s
+        JOIN dictionary_words dw ON dw.id = dwt.word_id
+        JOIN dictionary_topics t ON t.id = dwt.topic_id
+        WHERE dw.user_id = %s
     '''
     params: list[Any] = [user_id]
 
-    if words:
-        normalized_words = [normalize_word(word) for word in words if word]
-        if normalized_words:
-            query += ' AND dwt.normalized_word = ANY(%s)'
-            params.append(normalized_words)
+    if word_ids:
+        query += ' AND dwt.word_id = ANY(%s::int[])'
+        params.append(word_ids)
 
     query += ' ORDER BY t.name ASC'
 
@@ -79,74 +74,57 @@ def _fetch_word_topics_map(user_id: int, words: list[str] | None = None) -> dict
         cursor.execute(query, tuple(params))
         topic_rows = cursor.fetchall()
 
-    topics_by_word: dict[str, list[str]] = {}
+    topics_by_word: dict[int, list[str]] = {}
     for row in topic_rows:
-        topics_by_word.setdefault(row['normalized_word'], []).append(row['topic'])
+        topics_by_word.setdefault(row['word_id'], []).append(row['topic'])
 
     return topics_by_word
 
 
-def _replace_word_topics(user_id: int, word: str, topics: list[str]) -> list[str]:
-    normalized_word = normalize_word(word)
+def _replace_word_topics(cursor: Any, user_id: int, word_id: int, topics: list[str]) -> list[str]:
+    cursor.execute(
+        '''
+        DELETE FROM dictionary_word_topics
+        WHERE word_id = %s
+        ''',
+        (word_id,),
+    )
 
-    with get_db_cursor(commit=True) as cursor:
+    if topics:
         cursor.execute(
             '''
-            DELETE FROM dictionary_word_topics
-            WHERE user_id = %s AND normalized_word = %s
+            INSERT INTO dictionary_topics (user_id, name)
+            SELECT %s, topic_name
+            FROM unnest(%s::text[]) AS topic_name
+            ON CONFLICT (user_id, name)
+            DO UPDATE SET name = EXCLUDED.name
             ''',
-            (user_id, normalized_word),
+            (user_id, topics),
         )
-
-        if topics:
-            cursor.execute(
-                '''
-                INSERT INTO topics (user_id, name, normalized_name)
-                SELECT %s, topic_name, lower(topic_name)
-                FROM unnest(%s::text[]) AS topic_name
-                ON CONFLICT (user_id, normalized_name)
-                DO UPDATE SET
-                    name = EXCLUDED.name,
-                    updated_at = NOW()
-                ''',
-                (user_id, topics),
-            )
-
-            cursor.execute(
-                '''
-                INSERT INTO dictionary_word_topics (user_id, normalized_word, topic_id)
-                SELECT %s, %s, t.id
-                FROM topics t
-                WHERE t.user_id = %s AND t.normalized_name = ANY(%s::text[])
-                ON CONFLICT (user_id, normalized_word, topic_id) DO NOTHING
-                ''',
-                (user_id, normalized_word, user_id, [topic.lower() for topic in topics]),
-            )
 
         cursor.execute(
             '''
-            SELECT t.name AS topic
-            FROM dictionary_word_topics dwt
-            JOIN topics t ON t.id = dwt.topic_id
-            WHERE dwt.user_id = %s AND dwt.normalized_word = %s
-            ORDER BY t.name ASC
+            INSERT INTO dictionary_word_topics (word_id, topic_id)
+            SELECT %s, dt.id
+            FROM dictionary_topics dt
+            WHERE dt.user_id = %s AND dt.name = ANY(%s::text[])
+            ON CONFLICT (word_id, topic_id) DO NOTHING
             ''',
-            (user_id, normalized_word),
-        )
-        rows = cursor.fetchall()
-        saved_topics = [row['topic'] for row in rows]
-
-        cursor.execute(
-            '''
-            UPDATE dictionary_words
-            SET topic = %s, updated_at = NOW()
-            WHERE user_id = %s AND normalized_word = %s
-            ''',
-            ('/'.join(saved_topics), user_id, normalized_word),
+            (word_id, user_id, topics),
         )
 
-    return saved_topics
-
+    cursor.execute(
+        '''
+        SELECT t.name AS topic
+        FROM dictionary_word_topics dwt
+        JOIN dictionary_topics t ON t.id = dwt.topic_id
+        WHERE dwt.word_id = %s
+        ORDER BY t.name ASC
+        ''',
+        (word_id,),
+    )
+    rows = cursor.fetchall()
+    return [row['topic'] for row in rows]
 
 
 def fetch_user_profile(user_id: int, fallback_name: str = "", avatar_url: str = "") -> dict[str, str]:
@@ -267,40 +245,38 @@ def get_dictionary():
 
     params: list[Any] = [user['id']]
     query = '''
-        SELECT DISTINCT dw.word, dw.normalized_word, dw.definition, dw.relevance, dw.created_at
+        SELECT DISTINCT dw.id, dw.word, dw.definition, dw.relevance
         FROM dictionary_words dw
     '''
 
     if topic_filters:
         query += '''
-            JOIN dictionary_word_topics dwt
-                ON dwt.user_id = dw.user_id AND dwt.normalized_word = dw.normalized_word
-            JOIN topics t
-                ON t.id = dwt.topic_id AND t.user_id = dw.user_id
+            JOIN dictionary_word_topics dwt ON dwt.word_id = dw.id
+            JOIN dictionary_topics dt ON dt.id = dwt.topic_id
         '''
 
     query += ' WHERE dw.user_id = %s'
 
     if topic_filters:
-        query += ' AND t.normalized_name = ANY(%s::text[])'
-        params.append([topic.lower() for topic in topic_filters])
+        query += ' AND dt.name = ANY(%s::text[])'
+        params.append(topic_filters)
 
-    query += ' ORDER BY dw.created_at DESC'
+    query += ' ORDER BY dw.id DESC'
 
     with get_db_cursor() as cursor:
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
 
-    topics_by_word = _fetch_word_topics_map(user['id'], [row['word'] for row in rows])
+    topics_by_word = _fetch_word_topics_map(user['id'], [row['id'] for row in rows])
 
     words = [
         {
             'word': row['word'],
             'definition': row['definition'],
             'relevance': int(row['relevance'] or 0),
-            'domain': '/'.join(topics_by_word.get(row['normalized_word'], [])),
-            'topics': topics_by_word.get(row['normalized_word'], []),
-            'createdAt': row['created_at'].isoformat() if row['created_at'] else None,
+            'domain': '/'.join(topics_by_word.get(row['id'], [])),
+            'topics': topics_by_word.get(row['id'], []),
+            'createdAt': None,
         }
         for row in rows
     ]
@@ -330,21 +306,19 @@ def add_dictionary_word():
     with get_db_cursor(commit=True) as cursor:
         cursor.execute(
             '''
-            INSERT INTO dictionary_words (user_id, word, normalized_word, definition, relevance)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (user_id, normalized_word)
+            INSERT INTO dictionary_words (user_id, word, definition, relevance)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id, word)
             DO UPDATE SET
-                word = EXCLUDED.word,
                 definition = EXCLUDED.definition,
                 relevance = EXCLUDED.relevance,
                 updated_at = NOW()
-            RETURNING word, normalized_word, definition, relevance, created_at
+            RETURNING id, word, definition, relevance
             ''',
-            (user['id'], word, normalize_word(word), definition, relevance),
+            (user['id'], word, definition, relevance),
         )
         saved = cursor.fetchone()
-
-    saved_topics = _replace_word_topics(user['id'], word, topics)
+        saved_topics = _replace_word_topics(cursor, user['id'], saved['id'], topics)
 
     return jsonify({
         'message': 'Word added',
@@ -354,7 +328,7 @@ def add_dictionary_word():
             'relevance': int(saved['relevance'] or 0),
             'domain': '/'.join(saved_topics),
             'topics': saved_topics,
-            'createdAt': saved['created_at'].isoformat() if saved['created_at'] else None,
+            'createdAt': None,
         },
     })
 
@@ -362,45 +336,31 @@ def add_dictionary_word():
 
 
 def _delete_words_from_dictionary(user_id: int, words: list[str]) -> dict[str, Any]:
-    normalized_pairs: list[tuple[str, str]] = []
+    cleaned_words: list[str] = []
     seen: set[str] = set()
 
     for raw_word in words:
         word = (raw_word or '').strip()
-        if not word:
+        if not word or word in seen:
             continue
-        normalized = normalize_word(word)
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        normalized_pairs.append((word, normalized))
+        seen.add(word)
+        cleaned_words.append(word)
 
-    if not normalized_pairs:
+    if not cleaned_words:
         return {'deletedCount': 0, 'deletedWords': []}
-
-    normalized_words = [item[1] for item in normalized_pairs]
 
     with get_db_cursor(commit=True) as cursor:
         cursor.execute(
             '''
-            DELETE FROM dictionary_word_topics
-            WHERE user_id = %s AND normalized_word = ANY(%s::text[])
-            ''',
-            (user_id, normalized_words),
-        )
-
-        cursor.execute(
-            '''
             DELETE FROM dictionary_words
-            WHERE user_id = %s AND normalized_word = ANY(%s::text[])
-            RETURNING word, normalized_word
+            WHERE user_id = %s AND word = ANY(%s::text[])
+            RETURNING word
             ''',
-            (user_id, normalized_words),
+            (user_id, cleaned_words),
         )
         deleted_rows = cursor.fetchall()
 
-    deleted_map = {row['normalized_word']: row['word'] for row in deleted_rows}
-    deleted_words = [deleted_map[item[1]] for item in normalized_pairs if item[1] in deleted_map]
+    deleted_words = [row['word'] for row in deleted_rows]
     return {'deletedCount': len(deleted_words), 'deletedWords': deleted_words}
 
 
@@ -465,16 +425,17 @@ def update_dictionary_word_topics():
             '''
             SELECT id
             FROM dictionary_words
-            WHERE user_id = %s AND normalized_word = %s
+            WHERE user_id = %s AND word = %s
             ''',
-            (user['id'], normalize_word(word)),
+            (user['id'], word),
         )
         existing = cursor.fetchone()
 
     if not existing:
         return jsonify({'error': 'Word not found'}), 404
 
-    saved_topics = _replace_word_topics(user['id'], word, topics)
+    with get_db_cursor(commit=True) as cursor:
+        saved_topics = _replace_word_topics(cursor, user['id'], existing['id'], topics)
     return jsonify({'message': 'Topics updated', 'word': word, 'topics': saved_topics})
 
 
@@ -494,15 +455,13 @@ def create_topic():
     with get_db_cursor(commit=True) as cursor:
         cursor.execute(
             '''
-            INSERT INTO topics (user_id, name, normalized_name)
-            VALUES (%s, %s, lower(%s))
-            ON CONFLICT (user_id, normalized_name)
-            DO UPDATE SET
-                name = EXCLUDED.name,
-                updated_at = NOW()
+            INSERT INTO dictionary_topics (user_id, name)
+            VALUES (%s, %s)
+            ON CONFLICT (user_id, name)
+            DO UPDATE SET name = EXCLUDED.name
             RETURNING id, name
             ''',
-            (user['id'], name, name),
+            (user['id'], name),
         )
         row = cursor.fetchone()
 
@@ -528,16 +487,14 @@ def delete_topics():
     if not topics:
         return jsonify({'error': 'topics must contain at least one item'}), 400
 
-    normalized_topics = sorted({topic.lower() for topic in topics})
-
     with get_db_cursor(commit=True) as cursor:
         cursor.execute(
             '''
-            DELETE FROM topics
-            WHERE user_id = %s AND normalized_name = ANY(%s::text[])
+            DELETE FROM dictionary_topics
+            WHERE user_id = %s AND name = ANY(%s::text[])
             RETURNING id
             ''',
-            (user['id'], normalized_topics),
+            (user['id'], topics),
         )
         deleted_count = len(cursor.fetchall())
 
@@ -553,10 +510,9 @@ def get_topics():
     with get_db_cursor() as cursor:
         cursor.execute(
             '''
-            SELECT t.name, COUNT(*)::int AS words_count
-            FROM topics t
-            LEFT JOIN dictionary_word_topics dwt
-                ON dwt.topic_id = t.id AND dwt.user_id = t.user_id
+            SELECT t.name, COUNT(dwt.word_id)::int AS words_count
+            FROM dictionary_topics t
+            LEFT JOIN dictionary_word_topics dwt ON dwt.topic_id = t.id
             WHERE t.user_id = %s
             GROUP BY t.id
             ORDER BY t.name ASC

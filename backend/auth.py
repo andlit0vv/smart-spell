@@ -135,39 +135,6 @@ def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
     return context
 
 
-def _persist_telegram_payload(user_id: int, context: dict[str, Any]) -> None:
-    with get_db_cursor(commit=True) as cursor:
-        cursor.execute(
-            '''
-            CREATE TABLE IF NOT EXISTS telegram_auth_payloads (
-                user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-                telegram_id BIGINT NOT NULL,
-                init_data TEXT NOT NULL,
-                user_payload JSONB NOT NULL,
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-            '''
-        )
-        cursor.execute(
-            '''
-            INSERT INTO telegram_auth_payloads (user_id, telegram_id, init_data, user_payload)
-            VALUES (%s, %s, %s, %s::jsonb)
-            ON CONFLICT (user_id)
-            DO UPDATE SET
-                telegram_id = EXCLUDED.telegram_id,
-                init_data = EXCLUDED.init_data,
-                user_payload = EXCLUDED.user_payload,
-                updated_at = NOW()
-            ''',
-            (
-                user_id,
-                context["telegram_id"],
-                context.get("raw_init_data") or "",
-                json.dumps(context.get("raw_user") or {}, ensure_ascii=False),
-            ),
-        )
-
-
 def get_or_create_user(context: dict[str, Any]) -> dict[str, Any]:
     with get_db_cursor(commit=True) as cursor:
         cursor.execute(
@@ -189,8 +156,6 @@ def get_or_create_user(context: dict[str, Any]) -> dict[str, Any]:
             ),
         )
         user = dict(cursor.fetchone())
-
-    _persist_telegram_payload(user["id"], context)
 
     user["photo_url"] = context.get("photo_url") or ""
     user["last_name"] = context.get("last_name") or ""
