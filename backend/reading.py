@@ -187,6 +187,7 @@ def register_reading_endpoints(app):
         allow_word_forms = bool(data.get("allow_word_forms", False))
         story_prompt = str(data.get("story_prompt") or "").strip()
         english_level = str(data.get("level") or "B1").strip() or "B1"
+        user_interests = str(data.get("user_interests") or "").strip()
 
         user_prompt = f"""
     Input:
@@ -195,8 +196,9 @@ def register_reading_endpoints(app):
     allow_word_forms: {str(allow_word_forms).lower()}
     story_prompt: {story_prompt if story_prompt else "not provided"}
     level: {english_level}
+    user_interests: {user_interests if user_interests else "not provided"}
 
-    Generate a natural English learning text.
+    Generate a natural English learning text that reflects user interests when provided.
     """
 
         text = ""
@@ -236,5 +238,6 @@ def register_reading_endpoints(app):
                 "max_words": MAX_TOTAL_WORDS,
                 "story_prompt": story_prompt,
                 "level": english_level,
+                "user_interests": user_interests,
             }
         )

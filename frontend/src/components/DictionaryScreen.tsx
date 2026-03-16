@@ -99,13 +99,13 @@ const DictionaryScreen = ({ theme, toggleTheme, resetSignal = 0 }: DictionaryScr
 
   useEffect(() => {
     try {
-      const storedCategories = sessionStorage.getItem(STORAGE_KEYS.categories);
+      const storedCategories = localStorage.getItem(STORAGE_KEYS.categories) ?? sessionStorage.getItem(STORAGE_KEYS.categories);
       if (storedCategories) {
         const parsed = JSON.parse(storedCategories) as Record<string, WordCategory>;
         setCategoriesById(parsed);
       }
 
-      const storedAssignments = sessionStorage.getItem(STORAGE_KEYS.assignments);
+      const storedAssignments = localStorage.getItem(STORAGE_KEYS.assignments) ?? sessionStorage.getItem(STORAGE_KEYS.assignments);
       if (storedAssignments) {
         const parsed = JSON.parse(storedAssignments) as Record<string, string[]>;
         setWordCategoryIds(parsed);
@@ -209,11 +209,11 @@ const DictionaryScreen = ({ theme, toggleTheme, resetSignal = 0 }: DictionaryScr
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(categoriesById));
+    localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(categoriesById));
   }, [categoriesById]);
 
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEYS.assignments, JSON.stringify(wordCategoryIds));
+    localStorage.setItem(STORAGE_KEYS.assignments, JSON.stringify(wordCategoryIds));
   }, [wordCategoryIds]);
 
   const allCategories = useMemo(() => Object.values(categoriesById), [categoriesById]);
@@ -260,27 +260,49 @@ const DictionaryScreen = ({ theme, toggleTheme, resetSignal = 0 }: DictionaryScr
   };
 
 
-  const handleDeleteSelectedCategories = () => {
+  const handleDeleteSelectedCategories = async () => {
     const selectedCategoryIds = new Set(categoryFilters);
     if (selectedCategoryIds.size === 0) return;
 
-    setWordCategoryIds((prev) => {
-      const next: Record<string, string[]> = {};
-      Object.entries(prev).forEach(([word, ids]) => {
-        next[word] = ids.filter((id) => !selectedCategoryIds.has(id));
-      });
-      return next;
-    });
+    const selectedCategoryNames = Array.from(selectedCategoryIds)
+      .map((id) => categoriesById[id]?.name)
+      .filter((name): name is string => Boolean(name));
 
-    setCategoriesById((prev) => {
-      const next = { ...prev };
-      selectedCategoryIds.forEach((id) => {
-        delete next[id];
-      });
-      return next;
-    });
+    if (selectedCategoryNames.length === 0) return;
 
-    setCategoryFilters(new Set());
+    const isConfirmed = window.confirm("Вы уверены, что хотите удалить выбранные категории?");
+    if (!isConfirmed) return;
+
+    try {
+      const response = await apiFetch("/api/topics", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topics: selectedCategoryNames }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to delete categories");
+
+      setWordCategoryIds((prev) => {
+        const next: Record<string, string[]> = {};
+        Object.entries(prev).forEach(([word, ids]) => {
+          next[word] = ids.filter((id) => !selectedCategoryIds.has(id));
+        });
+        return next;
+      });
+
+      setCategoriesById((prev) => {
+        const next = { ...prev };
+        selectedCategoryIds.forEach((id) => {
+          delete next[id];
+        });
+        return next;
+      });
+
+      setCategoryFilters(new Set());
+      notifyDictionaryUpdated();
+    } catch (error) {
+      console.error("[Dictionary] Failed to delete selected categories", error);
+    }
   };
 
   const handleMarkLearned = async () => {

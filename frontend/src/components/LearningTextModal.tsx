@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type MouseEvent, type TouchEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -135,10 +135,38 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
   const [analysisError, setAnalysisError] = useState("");
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
+  const [englishLevel, setEnglishLevel] = useState("B1");
+  const [userInterests, setUserInterests] = useState("");
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const targetWordsSet = useMemo(() => new Set(selectedWords.map((word) => word.toLowerCase())), [selectedWords]);
   const targetStems = useMemo(() => new Set(selectedWords.map((word) => normalizeStem(word)).filter((stem) => stem.length >= 4)), [selectedWords]);
+
+
+  useEffect(() => {
+    if (!open) return;
+
+    const loadProfile = async () => {
+      try {
+        const response = await apiFetch("/api/profile");
+        const payload = await response.json();
+
+        if (!response.ok || !payload.profile) return;
+
+        if (typeof payload.profile.englishLevel === "string" && payload.profile.englishLevel.trim()) {
+          setEnglishLevel(payload.profile.englishLevel.trim());
+        }
+
+        if (typeof payload.profile.bio === "string") {
+          setUserInterests(payload.profile.bio.trim());
+        }
+      } catch (profileError) {
+        console.error("[Reading] Failed to load profile", profileError);
+      }
+    };
+
+    void loadProfile();
+  }, [open]);
 
   const generateText = async () => {
     if (!selectedWords.length) return;
@@ -155,6 +183,8 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
           target_words: selectedWords,
           allow_word_forms: allowWordForms,
           story_prompt: storyPrompt.trim() || undefined,
+          level: englishLevel,
+          user_interests: userInterests || undefined,
         }),
       });
 
@@ -288,11 +318,7 @@ const LearningTextModal = ({ open, selectedWords, onClose }: Props) => {
       if (!response.ok) throw new Error(payload.error || "Dictionary update failed");
 
       notifyDictionaryUpdated();
-      if (!analysisCard.isInDictionary) {
-        setAnalysisCard(null);
-      } else {
-        setAnalysisCard((prev) => (prev ? { ...prev, isInDictionary: !prev.isInDictionary } : prev));
-      }
+      setAnalysisCard((prev) => (prev ? { ...prev, isInDictionary: !prev.isInDictionary } : prev));
     } catch (dictionaryError) {
       setAnalysisError(dictionaryError instanceof Error ? dictionaryError.message : "Cannot update dictionary");
     } finally {

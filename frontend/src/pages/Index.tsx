@@ -86,7 +86,7 @@ const Index = () => {
   };
 
   return (
-    <div className="app-gradient-bg min-h-app bg-background transition-colors duration-300">
+    <div className="app-gradient-bg min-h-app bg-background pt-[calc(env(safe-area-inset-top)+16px)] transition-colors duration-300">
       <AppLogo />
 
       {showFirstLevelModal ? (

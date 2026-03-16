@@ -509,6 +509,40 @@ def create_topic():
     return jsonify({'message': 'Topic saved', 'topic': {'id': row['id'], 'name': row['name']}})
 
 
+
+
+@app.delete('/api/topics')
+def delete_topics():
+    data = request.get_json(silent=True) or {}
+
+    try:
+        user = resolve_current_user(request)
+    except (RuntimeError, ValueError) as error:
+        return _json_bad_request(error)
+
+    try:
+        topics = _parse_topics(data.get('topics'))
+    except ValueError as error:
+        return _json_bad_request(error)
+
+    if not topics:
+        return jsonify({'error': 'topics must contain at least one item'}), 400
+
+    normalized_topics = sorted({topic.lower() for topic in topics})
+
+    with get_db_cursor(commit=True) as cursor:
+        cursor.execute(
+            '''
+            DELETE FROM topics
+            WHERE user_id = %s AND normalized_name = ANY(%s::text[])
+            RETURNING id
+            ''',
+            (user['id'], normalized_topics),
+        )
+        deleted_count = len(cursor.fetchall())
+
+    return jsonify({'message': 'Topics deleted', 'deletedCount': deleted_count, 'topics': topics})
+
 @app.get('/api/topics')
 def get_topics():
     try:
