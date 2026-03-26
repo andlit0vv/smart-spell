@@ -41,6 +41,25 @@ def _build_connection_config() -> dict[str, str]:
     return config
 
 
+def get_db_target_summary() -> dict[str, str]:
+    config = _build_connection_config()
+    if "database_url" in config:
+        return {
+            "source": "DATABASE_URL",
+            "database_url": config["database_url"],
+            "sslmode": os.getenv("PGSSLMODE", "prefer"),
+        }
+
+    return {
+        "source": "PG*",
+        "user": config["user"],
+        "host": config["host"],
+        "port": config["port"],
+        "dbname": config["dbname"],
+        "sslmode": os.getenv("PGSSLMODE", "prefer"),
+    }
+
+
 @contextmanager
 def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
     config = _build_connection_config()
