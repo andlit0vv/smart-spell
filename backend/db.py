@@ -34,24 +34,36 @@ def _is_placeholder(value: str) -> bool:
     return any(token in upper_value for token in PLACEHOLDER_TOKENS)
 
 
+def _read_env_value(*keys: str, default: str = "") -> str:
+    for key in keys:
+        value = os.getenv(key)
+        if value is None:
+            continue
+        normalized = value.strip()
+        if not normalized or _is_placeholder(normalized):
+            continue
+        return normalized
+    return default
+
+
 def _build_connection_candidates() -> list[dict[str, str]]:
     candidates: list[dict[str, str]] = []
-    database_url = os.getenv("DATABASE_URL", "").strip()
+    database_url = _read_env_value("DATABASE_URL")
 
-    if database_url and not _is_placeholder(database_url):
+    if database_url:
         candidates.append({"source": "DATABASE_URL", "database_url": database_url})
 
     # Explicit per-field config when DATABASE_URL is not provided.
     config = {
-        "user": os.getenv("PGUSER", os.getenv("user", "andrey")).strip(),
-        "password": os.getenv("PGPASSWORD", os.getenv("password", "")).strip(),
-        "host": os.getenv("PGHOST", os.getenv("host", "localhost")).strip(),
-        "port": os.getenv("PGPORT", os.getenv("port", "5432")).strip(),
-        "dbname": os.getenv("PGDATABASE", os.getenv("dbname", "anovadb")).strip(),
+        "user": _read_env_value("PGUSER", "DB_USER", "user", default="andrey"),
+        "password": _read_env_value("PGPASSWORD", "DB_PASSWORD", "password", default=""),
+        "host": _read_env_value("PGHOST", "DB_HOST", "host", default="localhost"),
+        "port": _read_env_value("PGPORT", "DB_PORT", "port", default="5432"),
+        "dbname": _read_env_value("PGDATABASE", "DB_NAME", "dbname", default="anovadb"),
     }
 
     has_required_fields = all([config["user"], config["host"], config["port"], config["dbname"]])
-    if has_required_fields and not _is_placeholder(config["password"]):
+    if has_required_fields:
         candidates.append({"source": "PG*", **config})
 
     return candidates

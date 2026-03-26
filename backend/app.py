@@ -158,10 +158,21 @@ def _json_bad_request(error: Exception):
 def _json_db_unavailable(error: Exception):
     message = str(error)
     dns_hint = 'could not translate host name' in message
+    target = get_db_target_summary()
+
+    logger.exception(
+        '[DB] OperationalError while handling %s %s | target=%s | error=%s',
+        request.method,
+        request.path,
+        target,
+        message,
+    )
 
     details = {
         'error': 'Database is temporarily unavailable.',
         'details': message,
+        'dbTarget': target,
+        'requestPath': request.path,
     }
     if dns_hint:
         details['hint'] = (
