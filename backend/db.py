@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 
 CONNECT_TIMEOUT_SECONDS = 8
+PLACEHOLDER_TOKENS = ("<PASSWORD>", "<YOUR_", "CHANGE_ME")
 
 
 def _load_env_files() -> None:
@@ -17,17 +18,28 @@ def _load_env_files() -> None:
     repo_root = backend_dir.parent
 
     load_dotenv(repo_root / ".env")
-    load_dotenv(backend_dir / ".env", override=True)
+    # Never override already exported environment variables (for example, systemd
+    # EnvironmentFile values in production).
+    load_dotenv(backend_dir / ".env")
 
 
 _load_env_files()
 
 
-def _build_connection_config() -> dict[str, str]:
+def _is_placeholder(value: str) -> bool:
+    normalized = value.strip()
+    if not normalized:
+        return False
+    upper_value = normalized.upper()
+    return any(token in upper_value for token in PLACEHOLDER_TOKENS)
+
+
+def _build_connection_candidates() -> list[dict[str, str]]:
+    candidates: list[dict[str, str]] = []
     database_url = os.getenv("DATABASE_URL", "").strip()
 
-    if database_url:
-        return {"database_url": database_url}
+    if database_url and not _is_placeholder(database_url):
+        candidates.append({"source": "DATABASE_URL", "database_url": database_url})
 
     # Explicit per-field config when DATABASE_URL is not provided.
     config = {
@@ -38,20 +50,32 @@ def _build_connection_config() -> dict[str, str]:
         "dbname": os.getenv("PGDATABASE", os.getenv("dbname", "anovadb")).strip(),
     }
 
-    return config
+    has_required_fields = all([config["user"], config["host"], config["port"], config["dbname"]])
+    if has_required_fields and not _is_placeholder(config["password"]):
+        candidates.append({"source": "PG*", **config})
+
+    return candidates
 
 
 def get_db_target_summary() -> dict[str, str]:
-    config = _build_connection_config()
+    candidates = _build_connection_candidates()
+    if not candidates:
+        return {
+            "source": "none",
+            "error": "No valid DB config found. Check DATABASE_URL or PG* variables.",
+            "sslmode": os.getenv("PGSSLMODE", "prefer"),
+        }
+
+    config = candidates[0]
     if "database_url" in config:
         return {
-            "source": "DATABASE_URL",
+            "source": config["source"],
             "database_url": config["database_url"],
             "sslmode": os.getenv("PGSSLMODE", "prefer"),
         }
 
     return {
-        "source": "PG*",
+        "source": config["source"],
         "user": config["user"],
         "host": config["host"],
         "port": config["port"],
@@ -62,28 +86,44 @@ def get_db_target_summary() -> dict[str, str]:
 
 @contextmanager
 def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
-    config = _build_connection_config()
+    candidates = _build_connection_candidates()
+    if not candidates:
+        raise psycopg2.OperationalError(
+            "No valid DB config found. DATABASE_URL/PG* env values are missing or still placeholders."
+        )
+
+    connection = None
+    last_error: Exception | None = None
 
     try:
-        if "database_url" in config:
-            connection = psycopg2.connect(
-                config["database_url"],
-                sslmode=os.getenv("PGSSLMODE", "prefer"),
-                connect_timeout=CONNECT_TIMEOUT_SECONDS,
-                cursor_factory=RealDictCursor,
-            )
-        else:
-            connection = psycopg2.connect(
-                user=config["user"],
-                password=config["password"],
-                host=config["host"],
-                port=config["port"],
-                dbname=config["dbname"],
-                sslmode=os.getenv("PGSSLMODE", "prefer"),
-                connect_timeout=CONNECT_TIMEOUT_SECONDS,
-                cursor_factory=RealDictCursor,
-            )
+        for config in candidates:
+            try:
+                if "database_url" in config:
+                    connection = psycopg2.connect(
+                        config["database_url"],
+                        sslmode=os.getenv("PGSSLMODE", "prefer"),
+                        connect_timeout=CONNECT_TIMEOUT_SECONDS,
+                        cursor_factory=RealDictCursor,
+                    )
+                else:
+                    connection = psycopg2.connect(
+                        user=config["user"],
+                        password=config["password"],
+                        host=config["host"],
+                        port=config["port"],
+                        dbname=config["dbname"],
+                        sslmode=os.getenv("PGSSLMODE", "prefer"),
+                        connect_timeout=CONNECT_TIMEOUT_SECONDS,
+                        cursor_factory=RealDictCursor,
+                    )
+                break
+            except Exception as error:
+                last_error = error
+                connection = None
+                continue
 
+        if connection is None:
+            raise last_error or psycopg2.OperationalError("Unable to connect using provided DB configuration.")
 
         # Проверка запроса
         with connection.cursor() as cur:
@@ -98,7 +138,7 @@ def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
         raise
 
     finally:
-        if "connection" in locals():
+        if connection is not None:
             connection.close()
 
 
