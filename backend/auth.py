@@ -13,6 +13,10 @@ from db import get_db_cursor
 logger = logging.getLogger(__name__)
 
 
+def _is_permissive_auth_mode() -> bool:
+    return os.getenv("TELEGRAM_AUTH_MODE", "strict").strip().lower() in {"permissive", "dev"}
+
+
 def parse_telegram_init_data(raw_init_data: str) -> dict[str, str]:
     params = parse_qs(raw_init_data, keep_blank_values=True)
     return {key: values[0] if values else "" for key, values in params.items()}
@@ -82,15 +86,29 @@ def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     is_verified = False
 
+    permissive_mode = _is_permissive_auth_mode()
+
     if init_data:
         parsed_user = extract_telegram_user(init_data)
 
         if not bot_token:
-            raise RuntimeError("TELEGRAM_BOT_TOKEN is required to verify Telegram init data.")
+            if permissive_mode and parsed_user.get("telegram_id"):
+                logger.warning(
+                    "[Auth] TELEGRAM_BOT_TOKEN is missing, accepting unsigned init_data because TELEGRAM_AUTH_MODE=%s.",
+                    os.getenv("TELEGRAM_AUTH_MODE", "strict"),
+                )
+            else:
+                raise RuntimeError("TELEGRAM_BOT_TOKEN is required to verify Telegram init data.")
 
-        is_verified = validate_telegram_init_data(init_data, bot_token)
-        if not is_verified:
-            raise ValueError("Telegram init data signature verification failed.")
+        if bot_token:
+            is_verified = validate_telegram_init_data(init_data, bot_token)
+            if not is_verified:
+                if permissive_mode and parsed_user.get("telegram_id"):
+                    logger.warning(
+                        "[Auth] Telegram init_data signature validation failed, but request accepted in permissive mode."
+                    )
+                else:
+                    raise ValueError("Telegram init data signature verification failed.")
     elif fallback_user_header:
         try:
             raw_user = json.loads(fallback_user_header)
@@ -109,6 +127,29 @@ def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
             "raw_user": raw_user,
         }
         logger.warning("[Auth] Falling back to unsigned X-Telegram-User header because init_data is missing.")
+    elif permissive_mode:
+        fallback_telegram_id = os.getenv("DEV_TELEGRAM_USER_ID", "").strip()
+        if not fallback_telegram_id:
+            raise ValueError(
+                "Telegram init data is missing in X-Telegram-Init-Data header. "
+                "For development set DEV_TELEGRAM_USER_ID and TELEGRAM_AUTH_MODE=permissive, "
+                "or pass X-Telegram-User header."
+            )
+        parsed_user = {
+            "telegram_id": fallback_telegram_id,
+            "username": os.getenv("DEV_TELEGRAM_USERNAME", "").strip() or f"dev_{fallback_telegram_id}",
+            "first_name": os.getenv("DEV_TELEGRAM_FIRST_NAME", "").strip() or "Dev User",
+            "last_name": "",
+            "language_code": "",
+            "is_premium": False,
+            "allows_write_to_pm": False,
+            "photo_url": "",
+            "raw_user": {},
+        }
+        logger.warning(
+            "[Auth] Telegram auth headers are missing; using DEV_TELEGRAM_USER_ID=%s in permissive mode.",
+            fallback_telegram_id,
+        )
     else:
         raise ValueError("Telegram init data is missing in X-Telegram-Init-Data header.")
 
