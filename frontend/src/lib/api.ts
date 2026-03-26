@@ -35,12 +35,41 @@ function getTelegramInitData(): string {
   return initData;
 }
 
+function getTelegramUnsafeUserHeader(): string {
+  const rawUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  if (!rawUser) return "";
+
+  try {
+    return JSON.stringify(rawUser);
+  } catch {
+    return "";
+  }
+}
+
+async function waitForTelegramInitData(maxAttempts = 12, delayMs = 100): Promise<string> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const initData = getTelegramInitData();
+    if (initData) return initData;
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, delayMs);
+    });
+  }
+
+  return "";
+}
+
 export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers || {});
-  const initData = getTelegramInitData();
+  const initData = await waitForTelegramInitData();
+  const unsafeUser = getTelegramUnsafeUserHeader();
 
   if (initData && !headers.has("X-Telegram-Init-Data")) {
     headers.set("X-Telegram-Init-Data", initData);
+  }
+
+  if (unsafeUser && !headers.has("X-Telegram-User")) {
+    headers.set("X-Telegram-User", unsafeUser);
   }
 
   return fetch(input, {

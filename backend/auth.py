@@ -76,18 +76,41 @@ def normalize_telegram_id(raw_value: Any) -> int:
 
 def resolve_telegram_context(flask_request: Request) -> dict[str, Any]:
     init_data = flask_request.headers.get("X-Telegram-Init-Data", "").strip()
-    if not init_data:
-        raise ValueError("Telegram init data is missing in X-Telegram-Init-Data header.")
-
-    parsed_user = extract_telegram_user(init_data)
+    fallback_user_header = flask_request.headers.get("X-Telegram-User", "").strip()
+    parsed_user: dict[str, Any] = {}
 
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    if not bot_token:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN is required to verify Telegram init data.")
+    is_verified = False
 
-    is_verified = validate_telegram_init_data(init_data, bot_token)
-    if not is_verified:
-        raise ValueError("Telegram init data signature verification failed.")
+    if init_data:
+        parsed_user = extract_telegram_user(init_data)
+
+        if not bot_token:
+            raise RuntimeError("TELEGRAM_BOT_TOKEN is required to verify Telegram init data.")
+
+        is_verified = validate_telegram_init_data(init_data, bot_token)
+        if not is_verified:
+            raise ValueError("Telegram init data signature verification failed.")
+    elif fallback_user_header:
+        try:
+            raw_user = json.loads(fallback_user_header)
+        except json.JSONDecodeError as error:
+            raise ValueError("X-Telegram-User header must be a valid JSON object.") from error
+
+        parsed_user = {
+            "telegram_id": raw_user.get("id"),
+            "username": raw_user.get("username"),
+            "first_name": raw_user.get("first_name"),
+            "last_name": raw_user.get("last_name"),
+            "language_code": raw_user.get("language_code"),
+            "is_premium": bool(raw_user.get("is_premium")),
+            "allows_write_to_pm": bool(raw_user.get("allows_write_to_pm")),
+            "photo_url": raw_user.get("photo_url"),
+            "raw_user": raw_user,
+        }
+        logger.warning("[Auth] Falling back to unsigned X-Telegram-User header because init_data is missing.")
+    else:
+        raise ValueError("Telegram init data is missing in X-Telegram-Init-Data header.")
 
     logger.info(
         "[Auth] Incoming Telegram auth payload | has_init_data=%s parsed_user_id=%s has_bot_token=%s verified=%s",
