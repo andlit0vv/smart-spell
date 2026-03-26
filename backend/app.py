@@ -165,8 +165,8 @@ def _json_db_unavailable(error: Exception):
     }
     if dns_hint:
         details['hint'] = (
-            'Direct Supabase host DNS is not resolvable from current environment. '
-            'Set user/password/host/port/dbname (or DATABASE_URL) in backend/.env and retry.'
+            'Database host DNS is not resolvable from current environment. '
+            'Set DATABASE_URL (or PGUSER/PGPASSWORD/PGHOST/PGPORT/PGDATABASE) in backend/.env and retry.'
         )
 
     return jsonify(details), 503
