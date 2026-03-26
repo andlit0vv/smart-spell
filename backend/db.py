@@ -65,6 +65,22 @@ def _build_connection_candidates() -> list[dict[str, str]]:
     has_required_fields = all([config["user"], config["host"], config["port"], config["dbname"]])
     if has_required_fields:
         candidates.append({"source": "PG*", **config})
+        # Fallback for local Postgres installations that rely on unix-socket + peer auth.
+        # This is useful when PG* values are present but password is intentionally omitted.
+        if config["host"] in ("localhost", "127.0.0.1") and not config["password"]:
+            candidates.append(
+                {
+                    "source": "PG*_peer_socket",
+                    "user": config["user"],
+                    "host": _read_env_value(
+                        "PGHOST_SOCKET",
+                        "DB_HOST_SOCKET",
+                        default="/var/run/postgresql",
+                    ),
+                    "port": config["port"],
+                    "dbname": config["dbname"],
+                }
+            )
 
     return candidates
 
@@ -118,16 +134,19 @@ def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
                         cursor_factory=RealDictCursor,
                     )
                 else:
-                    connection = psycopg2.connect(
-                        user=config["user"],
-                        password=config["password"],
-                        host=config["host"],
-                        port=config["port"],
-                        dbname=config["dbname"],
-                        sslmode=os.getenv("PGSSLMODE", "prefer"),
-                        connect_timeout=CONNECT_TIMEOUT_SECONDS,
-                        cursor_factory=RealDictCursor,
-                    )
+                    connection_kwargs: dict[str, str | int] = {
+                        "user": config["user"],
+                        "host": config["host"],
+                        "port": config["port"],
+                        "dbname": config["dbname"],
+                        "sslmode": os.getenv("PGSSLMODE", "prefer"),
+                        "connect_timeout": CONNECT_TIMEOUT_SECONDS,
+                        "cursor_factory": RealDictCursor,
+                    }
+                    password = config.get("password", "")
+                    if password:
+                        connection_kwargs["password"] = password
+                    connection = psycopg2.connect(**connection_kwargs)
                 break
             except Exception as error:
                 last_error = error
