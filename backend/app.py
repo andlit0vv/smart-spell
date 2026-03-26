@@ -6,7 +6,7 @@ from typing import Any
 from flask import Flask, jsonify, request
 import psycopg2
 
-from db import get_db_cursor
+from db import get_db_cursor, get_db_target_summary
 from dialog import register_dialog_endpoints
 from llm import LLMError, analyze_term
 from reading import register_reading_endpoints
@@ -165,8 +165,8 @@ def _json_db_unavailable(error: Exception):
     }
     if dns_hint:
         details['hint'] = (
-            'Direct Supabase host DNS is not resolvable from current environment. '
-            'Set user/password/host/port/dbname (or DATABASE_URL) in backend/.env and retry.'
+            'Database host DNS is not resolvable from current environment. '
+            'Set DATABASE_URL (or PGUSER/PGPASSWORD/PGHOST/PGPORT/PGDATABASE) in backend/.env and retry.'
         )
 
     return jsonify(details), 503
@@ -175,6 +175,28 @@ def _json_db_unavailable(error: Exception):
 @app.errorhandler(psycopg2.OperationalError)
 def handle_db_operational_error(error: psycopg2.OperationalError):
     return _json_db_unavailable(error)
+
+
+@app.get('/api/debug/db-info')
+def debug_db_info():
+    target = get_db_target_summary()
+    with get_db_cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT
+                current_database() AS current_database,
+                current_user AS current_user,
+                inet_server_addr()::text AS server_addr,
+                inet_server_port() AS server_port,
+                version() AS version
+            '''
+        )
+        row = cursor.fetchone()
+
+    return jsonify({
+        'target': target,
+        'runtime': row,
+    })
 
 
 @app.get('/api/profile')

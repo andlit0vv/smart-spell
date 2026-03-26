@@ -29,16 +29,35 @@ def _build_connection_config() -> dict[str, str]:
     if database_url:
         return {"database_url": database_url}
 
-    # значения из env или fallback на pooler Supabase
+    # Explicit per-field config when DATABASE_URL is not provided.
     config = {
-        "user": os.getenv("user", "postgres.ibjgtvoipbvthntzvrpf").strip(),
-        "password": os.getenv("password", "DwNT/byqyH?#.4a").strip(),
-        "host": os.getenv("host", "aws-1-eu-west-2.pooler.supabase.com").strip(),
-        "port": os.getenv("port", "5432").strip(),
-        "dbname": os.getenv("dbname", "postgres").strip(),
+        "user": os.getenv("PGUSER", os.getenv("user", "andrey")).strip(),
+        "password": os.getenv("PGPASSWORD", os.getenv("password", "")).strip(),
+        "host": os.getenv("PGHOST", os.getenv("host", "localhost")).strip(),
+        "port": os.getenv("PGPORT", os.getenv("port", "5432")).strip(),
+        "dbname": os.getenv("PGDATABASE", os.getenv("dbname", "anovadb")).strip(),
     }
 
     return config
+
+
+def get_db_target_summary() -> dict[str, str]:
+    config = _build_connection_config()
+    if "database_url" in config:
+        return {
+            "source": "DATABASE_URL",
+            "database_url": config["database_url"],
+            "sslmode": os.getenv("PGSSLMODE", "prefer"),
+        }
+
+    return {
+        "source": "PG*",
+        "user": config["user"],
+        "host": config["host"],
+        "port": config["port"],
+        "dbname": config["dbname"],
+        "sslmode": os.getenv("PGSSLMODE", "prefer"),
+    }
 
 
 @contextmanager
@@ -49,7 +68,7 @@ def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
         if "database_url" in config:
             connection = psycopg2.connect(
                 config["database_url"],
-                sslmode="require",
+                sslmode=os.getenv("PGSSLMODE", "prefer"),
                 connect_timeout=CONNECT_TIMEOUT_SECONDS,
                 cursor_factory=RealDictCursor,
             )
@@ -60,7 +79,7 @@ def get_db_connection() -> Iterator[psycopg2.extensions.connection]:
                 host=config["host"],
                 port=config["port"],
                 dbname=config["dbname"],
-                sslmode="require",
+                sslmode=os.getenv("PGSSLMODE", "prefer"),
                 connect_timeout=CONNECT_TIMEOUT_SECONDS,
                 cursor_factory=RealDictCursor,
             )
